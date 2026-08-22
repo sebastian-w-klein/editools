@@ -33,6 +33,22 @@ LABELS = {
     "subentry-order": "Subentries out of order",
     "page-order": "Page numbers out of order",
     "range-order": "Page ranges reversed",
+    "duplicate-page": "Page listed twice",
+    "page-too-high": "Page past the end of the book",
+    "elision": "Page range elided wrongly",
+    "no-term": "No entry term",
+    "punctuation": "Doubled punctuation",
+    "spaced-dash": "Dash with a space beside it",
+    "italic-punctuation": "Punctuation should be roman",
+    "roman-note-comma": "Note comma should be italic",
+    "spell-out-title": "Personal title not abbreviated",
+    "post-world": "Check this hyphen",
+    "ff-passim": "ff. or passim",
+    "note-italics": "Note marker italicised",
+    "see-style": "see / see also restyled",
+    "quotes": "Curly quotes",
+    "number-dash": "En dash between page numbers",
+    "whitespace": "Tabs and extra spaces removed",
 }
 
 PAGE = r"""<!doctype html>
@@ -90,15 +106,25 @@ PAGE = r"""<!doctype html>
          font-family:system-ui,sans-serif; font-size:15px; }
   .note { margin-top:18px; font-size:13px; color:var(--muted);
           font-family:system-ui,sans-serif; }
+  .lastpage { display:flex; align-items:center; gap:10px; margin-top:16px;
+              font-family:system-ui,sans-serif; font-size:14px; flex-wrap:wrap; }
+  .lastpage input { width:110px; padding:8px 10px; border:1px solid var(--line);
+                    border-radius:6px; background:var(--bg); color:var(--ink);
+                    font-size:14px; }
+  .lastpage span { color:var(--muted); font-size:13px; }
+  .kind { font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+          color:var(--muted); font-weight:600; }
+  .kind.fix { color:var(--ok,#2f6b4f); }
+  tr.check td { opacity:.78; }
   .err { color:var(--accent); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Index Checker</h1>
-  <p class="sub">Drop in an index. You get the same file back with the problems
-     highlighted, each one explained in a Word comment, and every mark recorded
-     as a tracked change.</p>
+  <p class="sub">Drop in an index. What house style settles is fixed for you;
+     what needs judgement is highlighted and explained in a Word comment.
+     Everything is a tracked change, so nothing is decided behind your back.</p>
 
   <div class="panel">
     <div id="drop">
@@ -106,6 +132,11 @@ PAGE = r"""<!doctype html>
       <span>or click to choose one</span>
       <input type="file" id="file" accept=".docx" hidden>
     </div>
+
+    <label class="lastpage">Last page of the book
+      <input type="number" id="lastpage" min="1" placeholder="optional">
+      <span>so references past the end can be caught</span>
+    </label>
 
     <div class="status" id="status">
       <div class="bar"><i></i></div>
@@ -150,6 +181,8 @@ async function send(f) {
   msg.textContent = 'Checking ' + f.name + '…';
   const body = new FormData();
   body.append('file', f);
+  const last = document.getElementById('lastpage').value;
+  if (last) body.append('last_page', last);
   let data;
   try {
     data = await (await fetch('/check', {method:'POST', body})).json();
@@ -169,18 +202,23 @@ async function send(f) {
 function render(d) {
   let html = '<div class="tally">' +
     '<div><b>' + d.entries + '</b>entries</div>' +
-    '<div class="bad"><b>' + d.findings.length + '</b>to look at</div>';
+    '<div><b>' + d.fixes + '</b>fixed for you</div>' +
+    '<div class="bad"><b>' + d.flags + '</b>to look at</div>';
   for (const [rule, n] of Object.entries(d.counts))
     html += '<div><b>' + n + '</b>' + esc(d.labels[rule] || rule) + '</div>';
   html += '</div>';
 
   if (d.findings.length) {
-    html += '<table><tr><th>Entry</th><th>What is wrong</th></tr>';
+    html += '<table><tr><th>Entry</th><th></th><th>What happened</th></tr>';
     for (const f of d.findings.slice(0, 200)) {
       const sw = d.swatch[f.colour] || '#ccc';
-      html += '<tr><td class="where"><span class="swatch" style="background:' +
-              sw + '"></span>' + esc(f.entry) + '</td><td>' +
-              esc(f.message) + '</td></tr>';
+      const kind = f.fixed ? '<span class="kind fix">fixed</span>'
+                           : '<span class="kind">flagged</span>';
+      const dot = f.fixed ? '' :
+        '<span class="swatch" style="background:' + sw + '"></span>';
+      html += '<tr class="' + (f.severity === 'check' ? 'check' : '') +
+              '"><td class="where">' + dot + esc(f.entry) + '</td><td>' +
+              kind + '</td><td>' + esc(f.message) + '</td></tr>';
     }
     html += '</table>';
     if (d.findings.length > 200)
@@ -199,18 +237,24 @@ function render(d) {
 
 
 def _parse_upload(headers, body: bytes):
-    """Pull the single uploaded file out of a multipart/form-data body."""
+    """Pull the uploaded file, and any form fields, out of a multipart body."""
     content_type = headers.get("Content-Type", "")
     if "multipart/form-data" not in content_type:
         return None
     raw = (b"Content-Type: " + content_type.encode()
            + b"\r\nMIME-Version: 1.0\r\n\r\n" + body)
     message = BytesParser(policy=default_policy).parsebytes(raw)
+    upload, fields = None, {}
     for part in message.iter_parts():
         filename = part.get_filename()
         if filename:
-            return unquote(filename), part.get_payload(decode=True)
-    return None
+            upload = (unquote(filename), part.get_payload(decode=True))
+        else:
+            name = part.get_param("name", header="content-disposition")
+            if name:
+                fields[name] = part.get_payload(decode=True).decode(
+                    "utf-8", "replace").strip()
+    return (upload[0], upload[1], fields) if upload else None
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -275,7 +319,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(400, {"error": "No file was received."})
             return
 
-        filename, data = upload
+        filename, data, fields = upload
+        try:
+            last_page = int(fields.get("last_page") or 0) or None
+        except ValueError:
+            last_page = None
         WORKDIR.mkdir(parents=True, exist_ok=True)
         job = uuid.uuid4().hex
         folder = WORKDIR / job
@@ -286,7 +334,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         try:
             result = audit.run(
-                source, out_path=folder / (Path(safe).stem + "_checked.docx"))
+                source, out_path=folder / (Path(safe).stem + "_checked.docx"),
+                last_page=last_page)
         except Exception as exc:      # surfaced in the page, not the console
             shutil.rmtree(folder, ignore_errors=True)
             self._json(200, {"error": f"{type(exc).__name__}: {exc}"})
@@ -296,12 +345,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {
             "id": job,
             "entries": result.entries,
+            "fixes": result.fixes,
+            "flags": result.flags,
             "counts": result.counts(),
             "labels": LABELS,
             "swatch": SWATCH,
             "findings": [
                 {"entry": entry, "message": finding.message,
-                 "colour": finding.colour}
+                 "colour": finding.colour, "severity": finding.severity,
+                 "fixed": bool(finding.action)}
                 for entry, finding in result.described()
             ],
         })

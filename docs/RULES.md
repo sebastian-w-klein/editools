@@ -11,7 +11,9 @@ everything in them is right, which makes them a good test: nearly every flag
 should be a real miss, and a checker that cries wolf on copyedited work is
 useless.
 
-**Current state: 13 findings across 2,778 entries, and all 13 are genuine.**
+**Current state: 10 fixes made, 11 errors and 13 ambiguous cases flagged,
+across 2,778 entries.** Rejecting every change restores all three files
+paragraph for paragraph, which is checked on each run.
 
 ---
 
@@ -56,9 +58,10 @@ that followed it. Letters like `ø ł đ æ œ ß þ` are mapped explicitly.
 ## Where there is no single right answer
 
 Three of the alphabetising exceptions the wish list mentions genuinely have
-more than one defensible reading. Picking one and flagging every index that
-chose the other would bury the real findings, so an entry offers *candidate*
-keys and is accepted if any reading puts it in order.
+more than one defensible reading. These are all *reported*, since the house
+rule is the house rule — but a finding that only the house reading condemns is
+marked **check** rather than **error**, and its comment says which other
+reading would have saved it. Nothing is silently swallowed.
 
 **Numerals.** An index files numerals as though spelled out, but `911` may be
 read "nine one one" or "nine hundred eleven", and `1984` "nineteen
@@ -70,14 +73,10 @@ a name keeps it: `"El Pastor"` files under Pastor, and `al-Aqsa Mosque` under
 Aqsa. Both the term as written and the term without its article are offered,
 including joined Arabic prefixes (`al-`, `el-`, `ad-`…).
 
-**Initial prepositions in subentries.** This one is *not* a per-entry choice —
-an index picks a convention and holds to it. Judging each pair under whichever
-reading suits it lets an inconsistent list slip through: O'Hara has
-`at Fordlandia` before `Ford and`, which is wrong if you ignore "at" and wrong
-in a different place if you don't, but reading each pair separately finds
-neither. So the whole subentry list is judged under both conventions and the
-one it follows more closely is reported. On a tie the house rule wins:
-initial prepositions and conjunctions do not count.
+**Initial prepositions in subentries.** The house rule — the one the wish list
+states — is that they do not count, so that is what is reported against.
+Counting them is a real convention too, so where that reading would put the
+pair right, the finding says so and drops to **check**.
 
 ---
 
@@ -125,3 +124,65 @@ Two digits minimum (`22–23`, not `22–3`), no more than needed (`143–47`, n
    turns up.
 3. **The last page of the book** has to be entered by hand for the
    "page numbers too high" rule. It needs a box on the page.
+
+---
+
+## Phase two
+
+Eighteen more rules. They split into two kinds, and the split matters more than
+any individual rule: a **fix** is a tracked edit Word shows as a revision, and
+is only used where the guidelines settle the question outright. Anything
+needing judgement is **flagged** with a highlight and a comment instead.
+
+| Fixed for you | Flagged for you |
+|---|---|
+| Elision corrected to §9 (`308–310` → `308–10`) | Page listed twice in one entry, unless the repeat is italic (§11) |
+| Hyphens and em dashes between page numbers → en dash | Page reference past the last page of the book |
+| Note markers and note numbers italicised (§17) | Roman comma between italic note numbers (§17) |
+| `see` / `see also` lowercased and italicised (§15) | Doubled punctuation, and punctuation ending an entry |
+| Straight quotes → curly | A dash with a space beside it |
+| Tabs removed, runs of spaces collapsed | A comma or semicolon that should be roman, not italic (§3, §8) |
+| | A personal title spelled out rather than abbreviated (§7) |
+| | `ff.` or `passim`, which §9 forbids |
+| | A paragraph that is page numbers with no entry term |
+| | The hyphen in `post-World` |
+
+### Where §17 and the wish list disagree
+
+The wish list asks to italicise `n`/`nn` *"but not the number itself"*. §17 sets
+the number in italic too — `304n1`, `305nn1, 7` — and all three published
+indexes follow §17. The guidelines win: the marker and its note numbers are
+italicised together, and the page number stays roman.
+
+### What the real indexes forced
+
+Four rules were wrong on first contact with a published index, in ways worth
+recording because each looked right in isolation.
+
+**The §9 three-digit exception applies only when both ends stay in the band.**
+`608–609` takes three digits because 608 and 609 are both in the 600–609 band.
+`108–10` takes two, because 110 has left it. All three indexes are consistent
+about this, and reading §9's exception as "start is in the band" flagged 13
+correct ranges in Gleick alone.
+
+**A full stop before a comma is usually an abbreviation.** `Adam, A. O., 315`
+and `Benjamin, Park, Jr., 176` are not doubled punctuation, and neither is an
+entry ending `Merck and Co.` The wish list lists `.,` as a fault; in practice it
+is one only when the full stop does not close an initial or an abbreviation.
+Without that exception this rule alone produced 125 false positives.
+
+**A rank word is only a title when it titles someone.** `General Electric` is a
+company, `Major, Randolph` a surname, and `Major and, 114` a subentry about
+him. §7 only bites where the rank sits in the given-name position after a
+surname — `Sherman, Major General William Tecumseh`.
+
+**A line of page numbers is not the same as a numeric entry.** `911/999, 4, 5`
+is a real entry with no letters in its term. The rule fires only when the whole
+paragraph is digits, commas, spaces and dashes.
+
+### Overlapping edits
+
+Two rules can land on the same characters — an elision fix and a dash fix
+inside one range. Applying both would corrupt the text, so the first edit wins
+and the second is dropped; flags are unaffected, since they only add a
+highlight.

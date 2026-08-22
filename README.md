@@ -9,14 +9,34 @@ checker does can be left in the file by accident.
 
 ---
 
-## What it checks so far
+## What it does
+
+**Fixes, as tracked changes** — only where house style settles the question:
+
+* page ranges elided as §9 wants them (`308–310` → `308–10`)
+* hyphens and em dashes between page numbers turned into en dashes
+* note markers and their note numbers italicised (§17)
+* `see` and `see also` lowercased and italicised (§15)
+* straight quotes turned into curly ones
+* tabs removed, runs of spaces closed up
+
+**Flags, highlighted and explained in a comment** — where it needs your
+judgement:
 
 | Check | Highlight |
 |---|---|
 | Main entries out of alphabetical order | yellow |
 | Subentries out of alphabetical order | green |
-| Page numbers listed out of numerical order | blue |
-| Page ranges that run backwards (30–20) | pink |
+| Page numbers out of order, or listed twice | blue |
+| Page ranges that run backwards, or run past the end of the book | pink |
+| Doubled punctuation, or an entry ending in it | yellow |
+| A comma or semicolon that should be roman, not italic | green |
+| A personal title spelled out rather than abbreviated | yellow |
+| `ff.`, `passim`, spaced dashes, lines with no entry term | pink |
+
+A flag is either an **error** — wrong however you read it — or a **check**,
+meaning it breaks the house rule but would be right under another defensible
+reading. The comment says which.
 
 Alphabetising is letter by letter, per §5 of the FSG Indexing Guidelines: it
 ignores spaces, punctuation and accents, and everything after an open
@@ -24,23 +44,23 @@ parenthesis, comma or colon. Because that makes `New, Arthur` and `New, James`
 identical, a second key breaks the tie on the given name, with abbreviated
 personal titles ignored as §7 requires.
 
-The remaining rules from the wish list are not built yet.
-[`docs/FEASIBILITY.md`](docs/FEASIBILITY.md) covers all 28 and the build order;
-[`docs/RULES.md`](docs/RULES.md) records the judgement calls behind the ones
-that are done.
+[`docs/RULES.md`](docs/RULES.md) records the judgement calls behind every rule;
+[`docs/FEASIBILITY.md`](docs/FEASIBILITY.md) covers the whole wish list and
+what is left.
 
 ## How the marks work
 
 Every mark is a tracked change, so in Word:
 
-* **Reject All** puts the file back exactly as it arrived. This is tested — on
-  a 1,243-paragraph index, rejecting every change restored all 1,243
-  paragraphs character for character.
-* **Accept All** keeps the highlights. You would not normally want that; work
-  through the comments and reject as you go.
+* **Reject All** puts the file back exactly as it arrived — fixes and
+  highlights alike. This is checked on every run against all three sample
+  indexes, paragraph for paragraph.
+* **Accept All** would keep the highlights as well as the fixes, which you do
+  not want. Work through the changes one at a time: accept the fixes you agree
+  with, and reject each highlight once you have dealt with it.
 
-Each highlight has a comment saying what is wrong, so you never have to work
-out why something was flagged.
+Every highlight carries a comment saying what is wrong, so you never have to
+work out why something was flagged.
 
 ---
 
@@ -91,8 +111,10 @@ program itself. Closing it closes the checker.
 
 ## Step 4 — Check an index
 
-Drag the Word file onto the page. You get a list of what was found and a
-**Download the marked-up file** button.
+Drag the Word file onto the page. If you fill in the last page of the book
+first, it will also catch references pointing past the end. You get a list of
+what was fixed and what was flagged, and a **Download the marked-up file**
+button.
 
 Nothing leaves your computer. The page is served by the program running on your
 own machine.
@@ -102,10 +124,11 @@ own machine.
 ## For the terminal, if you prefer
 
 ```
-indexcheck check index.docx          # writes index_checked.docx
-indexcheck check index.docx --dry-run   # just report, write nothing
-indexcheck rules                     # list the checks and their colours
-indexcheck ui                        # open the drag-and-drop page
+indexcheck check index.docx                 # writes index_checked.docx
+indexcheck check index.docx --last-page 460 # also catch pages past the end
+indexcheck check index.docx --dry-run       # just report, write nothing
+indexcheck rules                            # list the checks and their colours
+indexcheck ui                               # open the drag-and-drop page
 ```
 
 ## Running the tests

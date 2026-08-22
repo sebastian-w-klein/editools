@@ -11,13 +11,14 @@ from .rules import COLOURS
 
 
 def _check(args) -> int:
-    result = audit.run(args.index, out_path=args.out, mark=not args.dry_run)
+    result = audit.run(args.index, out_path=args.out, mark=not args.dry_run,
+                       last_page=args.last_page)
     counts = result.counts()
     print(f"{result.entries} entries read from {Path(args.index).name}")
     if not result.findings:
         print("Nothing to flag.")
     else:
-        print(f"{len(result.findings)} thing(s) to look at:")
+        print(f"{result.fixes} fix(es) made, {result.flags} thing(s) flagged:")
         for rule in sorted(counts):
             print(f"  {counts[rule]:>4}  {rule}")
     if not args.dry_run:
@@ -43,6 +44,8 @@ def main(argv: list[str] | None = None) -> int:
     check.add_argument("-o", "--out", help="where to write the marked-up copy")
     check.add_argument("--dry-run", action="store_true",
                        help="report findings without writing a file")
+    check.add_argument("--last-page", type=int, metavar="N",
+                       help="last page of the book, to catch references past it")
     check.set_defaults(func=_check)
 
     rules = sub.add_parser("rules", help="list the checks and their colours")

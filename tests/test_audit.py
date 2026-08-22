@@ -61,3 +61,40 @@ def test_the_illustration_note_is_not_counted_as_an_entry(make_docx):
     result = audit.run(path, mark=False)
     assert result.entries == 1
     assert result.findings == []
+
+
+def test_fixes_are_applied_as_tracked_edits(make_docx):
+    """A messy entry comes back corrected, and rejecting restores it."""
+    from tests.test_docxio import resolve
+
+    messy = 'Adams, John,  15-22, 82n, 308–310; See also "Smith"'
+    path = make_docx(messy)
+    out = path.with_name("checked.docx")
+    audit.run(path, out_path=out)
+
+    paragraph = Document(str(out)).paragraphs[0]._p
+    assert resolve(paragraph, "reject") == messy
+    assert resolve(paragraph, "accept") == (
+        'Adams, John, 15–22, 82n, 308–10; see also “Smith”')
+
+
+def test_overlapping_fixes_do_not_corrupt_the_text(make_docx):
+    """An elision fix and a dash fix can land on the same range."""
+    from tests.test_docxio import resolve
+
+    messy = "Adams, 308-310, 100-9"
+    path = make_docx(messy)
+    out = path.with_name("checked.docx")
+    audit.run(path, out_path=out)
+
+    paragraph = Document(str(out)).paragraphs[0]._p
+    assert resolve(paragraph, "reject") == messy
+    accepted = resolve(paragraph, "accept")
+    assert "–" in accepted and "-" not in accepted
+
+
+def test_a_page_past_the_end_of_the_book_is_flagged(make_docx):
+    path = make_docx("Adams, John, 15, 402")
+    assert audit.run(path, mark=False, last_page=390).counts() == {
+        "page-too-high": 1}
+    assert audit.run(path, mark=False).counts() == {}

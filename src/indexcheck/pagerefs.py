@@ -49,6 +49,8 @@ class PageRef:
     italic: bool = False            # illustration reference (§11)
     start: int = 0                  # character offsets within the paragraph
     stop: int = 0
+    note_start: int = 0             # offsets of the "n"/"nn" and its numbers,
+    note_stop: int = 0              # which §17 sets in italic
     text: str = ""
 
     @property
@@ -71,11 +73,16 @@ def elide(start: int, end: int) -> str:
 
     Two digits minimum (22–23, not 22–3); no more digits than needed
     (143–47, not 143–147); three digits in the x00–x09 band (608–609).
+
+    The x00–x09 exception applies only when *both* ends sit in that band. The
+    published indexes are consistent about it: 108–109 takes three digits, but
+    108–10 takes two, because 110 has left the band.
     """
     head, tail = str(start), str(end)
     if len(head) != len(tail):
         return tail
-    if start % 100 <= 9:                     # §9 exception: 100–109, 608–609
+    if (start % 100 <= 9 and end % 100 <= 9
+            and start // 100 == end // 100):     # §9: 100–109, 608–609
         return tail
     shared = 0
     while shared < len(head) - 1 and head[shared] == tail[shared]:
@@ -145,6 +152,8 @@ def parse(text: str, italics: list[bool] | None = None, offset: int = 0) -> list
                 italic=ital,
                 start=start,
                 stop=stop,
+                note_start=(m.start("n") + offset) if m.group("n") else 0,
+                note_stop=(stop_at + offset) if m.group("n") else 0,
                 text=text[m.start():stop_at],
             )
         )

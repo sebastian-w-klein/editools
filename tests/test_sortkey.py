@@ -99,3 +99,29 @@ def test_an_arabic_article_prefix_files_under_the_next_word():
     assert ordered("Apocalypse Recalled (Maier)", "Al-Aqsa Flood",
                    "al-Aqsa Mosque, Jerusalem")
     assert ordered("Marx, Karl", "al-Masjid al-Aqsa")
+
+
+# -- how an ambiguous case is reported ---------------------------------------
+
+def test_an_ambiguous_ordering_says_which_reading_would_save_it():
+    from indexcheck.parser import parse
+    from indexcheck.rules import check_subentry_order
+
+    numeral = check_subentry_order(
+        parse("monopolies, 5; nickname for, 312; 1956 consent decree for, 391"))
+    assert numeral[0].severity == "check"
+    assert "spelled-out numeral" in numeral[0].message
+
+    preposition = check_subentry_order(
+        parse("x, 5; between Boston and New York, 135; bills for, 397"))
+    assert preposition[0].severity == "check"
+    assert "initial preposition counts" in preposition[0].message
+
+
+def test_an_unambiguous_ordering_error_is_an_error():
+    from indexcheck.parser import parse
+    from indexcheck.rules import check_subentry_order
+
+    found = check_subentry_order(parse("x, 5; parks, 61; architecture, 64"))
+    assert found[0].severity == "error"
+    assert "though" not in found[0].message
