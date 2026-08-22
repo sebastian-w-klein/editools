@@ -33,6 +33,8 @@ judgement:
 | A comma or semicolon that should be roman, not italic | green |
 | A personal title spelled out rather than abbreviated | yellow |
 | `ff.`, `passim`, spaced dashes, lines with no entry term | pink |
+| A `see` or `see also` pointing at an entry that does not exist | pink |
+| Punctuation between the parts of an entry (§12, §15, §16) | yellow |
 
 A flag is either an **error** — wrong however you read it — or a **check**,
 meaning it breaks the house rule but would be right under another defensible

@@ -11,7 +11,7 @@ everything in them is right, which makes them a good test: nearly every flag
 should be a real miss, and a checker that cries wolf on copyedited work is
 useless.
 
-**Current state: 10 fixes made, 11 errors and 13 ambiguous cases flagged,
+**Current state: 10 fixes made, 14 errors and 13 ambiguous cases flagged,
 across 2,778 entries.** Rejecting every change restores all three files
 paragraph for paragraph, which is checked on each run.
 
@@ -186,3 +186,65 @@ Two rules can land on the same characters — an elision fix and a dash fix
 inside one range. Applying both would corrupt the text, so the first edit wins
 and the second is dropped; flags are unaffected, since they only add a
 highlight.
+
+---
+
+## Phase three: cross-references and syntax
+
+### Where a cross-reference points
+
+§15 makes cross-references the last "subentry", separated by semicolons, which
+means a `see` has a different reach depending on where it sits:
+
+* a trailing run continues across semicolons to the end of the paragraph —
+  `art, 290; see also films; literature` names two entries;
+* a `see` inside a subentry stops at that subentry's semicolon —
+  `engineering department of, see Bell Labs; etiquette encouraged by, 137`
+  names one entry, not two;
+* a bracketed `(see also …)` is scoped to its brackets.
+
+Getting this wrong in either direction is silent: too greedy and half the
+index becomes a cross-reference target, too narrow and most references go
+unchecked.
+
+Every target is then looked up among the entries. Four things had to be
+allowed for before this stopped crying wolf on published work, and each is a
+real convention rather than a special case:
+
+* **A reference may name an entry in short.** `see Western Electric` points at
+  `Western Electric Manufacturing Company`, and `see also long-distance` at
+  `long-distance telephony`. Entries are registered under every word-boundary
+  prefix of their name.
+* **A slash joins two names for one entry.** `British Empire/United Kingdom`
+  answers to either half.
+* **`see under radio` means the entry `radio`.**
+* **An italic target is a whole category, not an entry.** §15 puts it last and
+  in italic — `see also individual neighborhoods` — and by design no such entry
+  exists, so italic targets are skipped.
+
+### Syntax
+
+The six sub-rules are checked by measuring the *gaps* between the parts the
+parser has already identified: a comma and a space between page numbers and
+before them, a semicolon and a space before a subentry, a semicolon or open
+bracket before `see also`, and no page numbers on an entry that is only a
+cross-reference.
+
+One allowance is needed: §15 lets a bracketed cross-reference sit in the gap
+before a subentry — `171–72 (see also Bell System); area codes created by` —
+so the punctuation is judged with any bracketed aside taken out. Without that,
+every parenthetical cross-reference in Gleick was flagged.
+
+This rule turns out to diagnose better than the ordering rules do. The missing
+semicolon in Gleick's `Communications Act of, 402 Centennial Exhibition and,
+85` shows up here as what it actually is, where the page-order rule could only
+report that 85 came after 402. It also found `294,341` — a comma with no space
+after it, which nothing else was looking for.
+
+### The one it cannot tell apart
+
+`Models 102, 300, and 302, 309–10` is flagged as a bad gap between page
+numbers. The model numbers in the entry's own name are indistinguishable from
+page references, so the checker reads `, and ` as punctuation between two page
+numbers. One instance in 2,778 entries, and it is arguably worth an eye
+anyway; worth knowing about rather than worth suppressing.

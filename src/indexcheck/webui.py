@@ -49,6 +49,8 @@ LABELS = {
     "quotes": "Curly quotes",
     "number-dash": "En dash between page numbers",
     "whitespace": "Tabs and extra spaces removed",
+    "dangling-crossref": "Cross-reference points nowhere",
+    "syntax": "Punctuation between the parts",
 }
 
 PAGE = r"""<!doctype html>

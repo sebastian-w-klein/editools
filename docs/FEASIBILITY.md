@@ -8,9 +8,11 @@ drops a file onto a web page, gets a file back.
 operations on text and character formatting. One rule (matching index terms
 against the book's own text) is genuinely hard and belongs in a later phase.
 
-> **Status.** Phases 1 and 2 are built: the tracked-changes layer, the entry
-> parser, the four high-priority rules and all eighteen lower-priority ones,
-> validated against three published FSG indexes.
+> **Status.** Everything except the last rule is built: the tracked-changes
+> layer, the entry parser, the four high-priority rules, all eighteen
+> lower-priority ones, and the syntax and cross-reference checks from the
+> "if possible" tier. Only matching index terms against the book's own text
+> is left. Validated against three published FSG indexes.
 > See [RULES.md](RULES.md) for what it decides and why. The guidelines and
 > sample indexes answered several of the open questions below; the answers are
 > recorded in RULES.md rather than restated here.
@@ -143,7 +145,7 @@ need tuning against real books to avoid drowning the user in noise. Phase 3.
    rules.
 2. ~~**The lower-priority rules.**~~ **Done.** All eighteen, split between
    tracked fixes and flags.
-3. **Syntax parsing + cross-references.**
+3. ~~**Syntax parsing + cross-references.**~~ **Done.**
 4. **Book-text matching.**
 
 ---

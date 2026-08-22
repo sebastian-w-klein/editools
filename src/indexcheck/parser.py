@@ -60,6 +60,7 @@ class Entry:
     crossrefs: list[Segment] = field(default_factory=list)
     colon_form: bool = False         # "Term: sub, refs" — no general refs (§12)
     is_note: bool = False            # the illustration note, not an entry
+    head: "Segment | None" = None    # the main term and its general references
 
 
 def _split_segments(text: str) -> list[tuple[str, int]]:
@@ -77,9 +78,48 @@ def _split_segments(text: str) -> list[tuple[str, int]]:
     return out
 
 
+def _find_top_level(text: str, pattern: str) -> int:
+    """Offset of the first match outside parentheses, or -1.
+
+    A colon or semicolon inside brackets belongs to a cross-reference —
+    "lawsuits involving (see monopolies: lawsuits against; patent litigation)"
+    is one segment, not a colon-form entry with subentries.
+    """
+    depth = 0
+    for m in re.finditer(r"[()]|" + pattern, text):
+        token = m.group(0)
+        if token == "(":
+            depth += 1
+        elif token == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            return m.start()
+    return -1
+
+
+def _mask_quoted(text: str) -> str:
+    """Blank out quoted spans, keeping offsets.
+
+    A title in quotes can hold a comma and a year — '"Ucayali, 1871" curare,
+    37' — and reading that comma as the boundary between the term and its
+    page references turns 1871 into a page number.
+    """
+    out, quote = [], None
+    for ch in text:
+        if quote is None and ch in "\u201c\"":
+            quote = "\u201d" if ch == "\u201c" else "\""
+            out.append(ch)
+        elif quote is not None and ch == quote:
+            quote = None
+            out.append(ch)
+        else:
+            out.append(" " if quote else ch)
+    return "".join(out)
+
+
 def _term_of(segment: str) -> str:
     """The term part of a segment — everything before its page references."""
-    m = re.search(r",\s*(?=\d|\(?see\b)", segment, re.IGNORECASE)
+    m = re.search(r",\s*(?=\d|\(?see\b)", _mask_quoted(segment), re.IGNORECASE)
     return (segment[: m.start()] if m else segment).strip()
 
 
@@ -96,15 +136,15 @@ def parse(text: str, italics: list[bool] | None = None) -> Entry:
 
     # "New York City: architecture, ..." — a colon means no general references
     # and everything after it is a subentry (§12).
-    colon = re.search(r":\s", body)
-    first_semi = body.find(";")
-    first_comma = body.find(",")
-    if colon and (first_semi == -1 or colon.start() < first_semi) \
-            and (first_comma == -1 or colon.start() < first_comma):
+    colon = _find_top_level(body, r":\s")
+    first_semi = _find_top_level(body, r";")
+    first_comma = _find_top_level(body, r",")
+    if colon != -1 and (first_semi == -1 or colon < first_semi) \
+            and (first_comma == -1 or colon < first_comma):
         entry.colon_form = True
-        entry.term = body[: colon.start()].strip()
-        entry.term_stop = colon.start()
-        offset = colon.end()
+        entry.term = body[:colon].strip()
+        entry.term_stop = colon
+        offset = colon + 2
         body = body[offset:]
 
     segments: list[Segment] = []
@@ -126,6 +166,7 @@ def parse(text: str, italics: list[bool] | None = None) -> Entry:
 
     if not entry.colon_form and segments:
         head = segments.pop(0)
+        entry.head = head
         entry.term = head.term
         entry.term_stop = head.start + len(head.term)
         entry.general = head.refs
@@ -139,3 +180,102 @@ def parse(text: str, italics: list[bool] | None = None) -> Entry:
     entry.subentries = [s for s in segments if not s.is_crossref]
     entry.crossrefs = [s for s in segments if s.is_crossref]
     return entry
+
+
+# ---------------------------------------------------------------------------
+# cross-reference targets
+# ---------------------------------------------------------------------------
+
+_SEE_WORD = re.compile(r"\bsee(\s+also)?\b", re.IGNORECASE)
+
+
+@dataclass
+class Target:
+    """One thing a cross-reference points at."""
+
+    text: str                        # as written, trimmed
+    start: int                       # offset within the paragraph
+    stop: int
+    also: bool = False               # "see also" rather than "see"
+    italic: bool = False             # a whole category, not an entry (§15)
+
+    @property
+    def entry_name(self) -> str:
+        """The main entry a target names, dropping any ': subentry' (§16)."""
+        return self.text.split(":")[0].strip()
+
+
+def _split_top_level(text: str, start: int) -> list[tuple[str, int]]:
+    """Split on semicolons outside parentheses, keeping offsets."""
+    out, depth, at = [], 0, 0
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif ch == ";" and depth == 0:
+            out.append((text[at:i], start + at))
+            at = i + 1
+    out.append((text[at:], start + at))
+    return out
+
+
+def _trim(text: str, start: int) -> tuple[str, int, int]:
+    """Strip surrounding space and brackets, keeping offsets straight."""
+    lead = len(text) - len(text.lstrip(" ("))
+    trimmed = text.strip(" ()").rstrip(".,;")
+    return trimmed, start + lead, start + lead + len(trimmed)
+
+
+def crossref_targets(entry: Entry) -> list[Target]:
+    """Every entry a cross-reference in this paragraph points at.
+
+    Three shapes, and the scope of a target depends on which one it is:
+
+    * the trailing run of cross-references, where §15 continues the list of
+      targets across semicolons to the end of the paragraph;
+    * a ``see`` inside a subentry, which ends at that subentry's semicolon —
+      "engineering department of, see Bell Labs; etiquette encouraged by, 137"
+      points at one entry, not two;
+    * a parenthetical ``(see also ...)``, scoped to its brackets.
+    """
+    targets: list[Target] = []
+
+    def add(text: str, start: int, also: bool):
+        trimmed, begin, end = _trim(text, start)
+        if not trimmed:
+            return
+        targets.append(Target(
+            trimmed, begin, end, also=also,
+            italic=bool(entry.italics[begin:end]) and all(entry.italics[begin:end]),
+        ))
+
+    # 1. the trailing cross-reference run (§15)
+    if entry.crossrefs:
+        first = entry.crossrefs[0]
+        m = _SEE_WORD.search(first.text)
+        also = bool(m and m.group(1))
+        rest = entry.crossrefs
+        if m:
+            add(first.text[m.end():], first.start + m.end(), also)
+            rest = entry.crossrefs[1:]
+        # otherwise the "see" sits in the head — a dummy entry (§16) — and
+        # every trailing segment is one of its targets
+        for segment in rest:
+            add(segment.text, segment.start, also)
+
+    # 2. a "see" inside the head or a subentry, and any parenthetical
+    for segment in ([entry.head] if entry.head else []) + entry.subentries:
+        for m in _SEE_WORD.finditer(segment.text):
+            also = bool(m.group(1))
+            rest, at = segment.text[m.end():], segment.start + m.end()
+            # a parenthetical closes at its bracket; otherwise the segment ends it
+            depth = segment.text[:m.start()].count("(") - segment.text[:m.start()].count(")")
+            if depth > 0:
+                close = rest.find(")")
+                if close != -1:
+                    rest = rest[:close]
+            for piece, start in _split_top_level(rest, at):
+                add(piece, start, also)
+
+    return targets

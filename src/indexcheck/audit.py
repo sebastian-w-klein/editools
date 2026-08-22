@@ -106,8 +106,10 @@ def run(path: str | Path, out_path: str | Path | None = None,
         for finding in _without_overlaps(found):
             result.findings.append((position, finding))
 
-    for position, finding in rules.check_entry_order(
-            [(p, e) for p, e, _ in parsed]):
+    document_entries = [(p, e) for p, e, _ in parsed]
+    for position, finding in rules.check_entry_order(document_entries):
+        result.findings.append((position, finding))
+    for position, finding in rules.check_crossref_targets(document_entries):
         result.findings.append((position, finding))
 
     if mark:

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from . import pagerefs
 from .pagerefs import EN_DASH, elide
-from .parser import Entry
+from .parser import Entry, crossref_targets
 from .sortkey import candidate_keys, in_order
 
 #: Highlight colour per rule, so the marked-up file is readable at a glance.
@@ -38,6 +38,8 @@ COLOURS = {
     "spell-out-title": "yellow",
     "post-world": "yellow",
     "ff-passim": "magenta",
+    "dangling-crossref": "magenta",
+    "syntax": "yellow",
 }
 
 #: Ranks that §7 requires to be abbreviated.
@@ -522,6 +524,135 @@ def check_has_term(entry: Entry) -> list[Finding]:
     return []
 
 
+
+
+# ---------------------------------------------------------------------------
+# cross-references pointing somewhere real (§15, §16)
+# ---------------------------------------------------------------------------
+
+def check_crossref_targets(
+        entries: list[tuple[int, Entry]]) -> list[tuple[int, Finding]]:
+    """Every 'see' and 'see also' should point at an entry that exists.
+
+    §15 puts a whole-category reference last and in italic — 'see also
+    individual neighborhoods' — and no such entry exists by design, so italic
+    targets are left alone. A target may also name a subentry of another entry
+    (§16: 'see also New York City: mass transit'); only the main entry it
+    names is checked.
+    """
+    known = set()
+    for _, entry in entries:
+        if entry.is_note or not entry.term:
+            continue
+        # A slash joins two names for one entry: "British Empire/United
+        # Kingdom" answers to either half.
+        for name in entry.term.split("/"):
+            words = name.split()
+            for length in range(1, len(words) + 1):
+                # A cross-reference may name an entry in short:
+                # "see Western Electric" for "Western Electric Manufacturing
+                # Company". Register every word-boundary prefix so it matches.
+                for key, _ in candidate_keys(" ".join(words[:length])):
+                    if len(key) >= 4 or length == len(words):
+                        known.add(key)
+
+    found = []
+    for position, entry in entries:
+        if entry.is_note:
+            continue
+        for target in crossref_targets(entry):
+            if target.italic or not target.entry_name:
+                continue
+            # "see under radio" points at the entry "radio"
+            name = re.sub(r"^under\s+", "", target.entry_name, flags=re.IGNORECASE)
+            if any(key in known for key, _ in candidate_keys(name)):
+                continue
+            found.append((position, Finding(
+                "dangling-crossref", target.start, target.stop,
+                f"nothing in the index is filed under {name!r}",
+            )))
+    return found
+
+
+# ---------------------------------------------------------------------------
+# syntax (§12, §15, §16)
+# ---------------------------------------------------------------------------
+
+def _separator(entry: Entry, start: int, stop: int) -> str:
+    return entry.text[start:stop]
+
+
+def check_syntax(entry: Entry) -> list[Finding]:
+    """The punctuation that holds an entry together.
+
+    A comma and a space between page numbers, and between an entry and its
+    page numbers; a semicolon and a space before a subentry; a semicolon or an
+    open bracket before 'see also'.
+    """
+    found = []
+
+    def separator(start: int, stop: int, wanted: str, what: str):
+        actual = entry.text[start:stop]
+        # §15 allows a parenthetical cross-reference to sit in the gap —
+        # "171-72 (see also Bell System); area codes created by" — so judge
+        # the punctuation with any bracketed aside taken out.
+        bare = re.sub(r"\s*\([^)]*\)", "", actual)
+        if bare == wanted or actual == wanted:
+            return
+        found.append(Finding(
+            "syntax", start, max(stop, start + 1),
+            f"{what} takes {wanted!r}, not {bare!r}",
+        ))
+
+    # between an entry and its page numbers, and between page numbers
+    for segment_refs, term_stop in (
+            [(entry.general, entry.term_stop)]
+            + [(s.refs, s.start + (len(s.text) - len(s.text.lstrip()))
+                + len(s.term)) for s in entry.subentries]):
+        if segment_refs:
+            first = segment_refs[0]
+            if term_stop < first.start:
+                separator(term_stop, first.start, ", ",
+                          "the gap before page numbers")
+        for previous, current in zip(segment_refs, segment_refs[1:]):
+            if previous.stop < current.start:
+                separator(previous.stop, current.start, ", ",
+                          "the gap between page numbers")
+
+    # between a page number and the subentry that follows it
+    previous_stop = None
+    if entry.general:
+        previous_stop = entry.general[-1].stop
+    for segment in entry.subentries + entry.crossrefs:
+        start = segment.start + (len(segment.text) - len(segment.text.lstrip()))
+        if previous_stop is not None and previous_stop < start:
+            separator(previous_stop, start, "; ", "the gap before a subentry")
+        previous_stop = segment.refs[-1].stop if segment.refs else None
+
+    # "see also" is preceded by a semicolon or an open bracket (§15)
+    for m in re.finditer(r"\bsee\s+also\b", entry.text, re.IGNORECASE):
+        before = entry.text[:m.start()].rstrip()
+        if before and before[-1] not in ";(":
+            found.append(Finding(
+                "syntax", m.start(), m.end(),
+                "§15 puts a semicolon or an open bracket before 'see also'",
+            ))
+
+    # a bare "see" on the main entry means no page numbers there (§16)
+    if entry.head is not None and entry.general:
+        bare = re.search(r"(?<!also\s)\bsee\b(?!\s+also)", entry.head.text,
+                         re.IGNORECASE)
+        if bare and "(" not in entry.head.text[:bare.start()]:
+            found.append(Finding(
+                "syntax", bare.start() + entry.head.start,
+                bare.end() + entry.head.start,
+                "§16: an entry that is only a cross-reference carries no page "
+                "numbers",
+            ))
+
+    return found
+
+
 #: Rules that look at one entry on its own.
 PER_ENTRY = [
     check_page_order, check_range_order, check_subentry_order,
@@ -529,5 +660,5 @@ PER_ENTRY = [
     check_roman_note_comma, check_quotes, check_number_dashes,
     check_spaced_dash, check_whitespace, check_punctuation_clusters,
     check_italic_punctuation, check_see_style, check_spelled_out_titles,
-    check_post_world, check_ff_passim, check_has_term,
+    check_post_world, check_ff_passim, check_has_term, check_syntax,
 ]
