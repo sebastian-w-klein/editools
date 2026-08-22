@@ -25,10 +25,10 @@ The Index Checker has to **edit the Word file in place and hand it back**, with
 every edit recorded as a Track Changes revision. That is the only genuinely new
 machinery, and it is the part most worth de-risking first — so it was.
 
-`spikes/tracked_changes_spike.py` is a working proof. It takes real
-FSG-style index paragraphs and applies tracked insertions, tracked deletions,
-tracked formatting changes (`w:rPrChange`) and highlights, at exact character
-ranges, in a real `.docx`. `spikes/verify_spike.py` confirms the output:
+This was spiked first and is now the `docxio` module, covered by
+`tests/test_docxio.py`. It applies tracked insertions, tracked deletions,
+tracked formatting changes (`w:rPrChange`) and highlights at exact character
+ranges in a real `.docx`:
 
 ```
 --- paragraph 1 ---
@@ -77,7 +77,7 @@ the shape of the code:
 | Page numbers out of numerical order | Needs the number parser (handles `45n12`, `82 and n`) |
 | Page ranges out of order (`30–20`) | Trivial once ranges are parsed |
 
-`spikes/sortkey_spike.py` implements the letter-by-letter rule from the
+The `sortkey` module implements the letter-by-letter rule from the
 guidelines — ignore spaces, hyphens, periods, quotes, and everything after an
 open parenthesis, comma, or colon:
 
