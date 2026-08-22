@@ -37,6 +37,36 @@ def api_key(explicit: str | None = None) -> str:
     return explicit or os.environ.get("MW_DICTIONARY_KEY") or load().get("mw_key", "")
 
 
+def verify_and_save(key: str) -> tuple[bool, str]:
+    """Check a Merriam-Webster key actually works, then store it.
+
+    Verifying before saving turns the commonest setup mistake — copying the
+    Thesaurus key instead of the Collegiate one — into a clear message at the
+    moment it happens, rather than a spreadsheet full of unverified rows later.
+    """
+    from .dictionary import Dictionary
+
+    key = key.strip()
+    if not key:
+        return False, "No key was entered."
+
+    dictionary = Dictionary(api_key=key, cache_path=CACHE_PATH)
+    check = dictionary.lookup("cemetery")
+    if check.source != "mw":
+        detail = dictionary.api_errors[0] if dictionary.api_errors else "no entry came back"
+        return False, (
+            f"That key did not work ({detail}). Check you copied the Collegiate "
+            f"Dictionary key rather than the Thesaurus one — they are not "
+            f"interchangeable. A brand-new key can also take a few minutes to start working."
+        )
+
+    settings = load()
+    settings["mw_key"] = key
+    save(settings)
+    dictionary.save()
+    return True, f"Key saved and working (cemetery \u2192 {check.display})."
+
+
 def load_overrides(path: str | Path | None = None) -> dict[str, str]:
     """Words the proofreader has ruled on herself.
 

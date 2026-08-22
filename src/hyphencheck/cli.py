@@ -75,33 +75,20 @@ def cmd_word(args) -> int:
 
 
 def cmd_setup(args) -> int:
-    settings = config.load()
     key = args.key
     if not key:
         print("Merriam-Webster Collegiate Dictionary API key")
-        print("(free from https://dictionaryapi.com/register/index — see SETUP.md)")
+        print("(free from https://dictionaryapi.com/register/index — see the README)")
         try:
             key = input("Key: ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             return 1
-    if not key:
-        print("Nothing entered; no change made.")
+    ok, message = config.verify_and_save(key)
+    if not ok:
+        print(message, file=sys.stderr)
         return 1
-
-    dictionary = Dictionary(api_key=key, cache_path=config.CACHE_PATH)
-    check = dictionary.lookup("cemetery")
-    if check.source != "mw":
-        detail = dictionary.api_errors[0] if dictionary.api_errors else "no entry returned"
-        print(f"That key did not work ({detail}).", file=sys.stderr)
-        print("Check you copied the Collegiate Dictionary key, not the Thesaurus one.",
-              file=sys.stderr)
-        return 1
-
-    settings["mw_key"] = key
-    path = config.save(settings)
-    dictionary.save()
-    print(f"Key verified (cemetery → {check.display}) and saved to {path}.")
+    print(f"{message}\nSaved to {config.CONFIG_PATH}. You will not be asked again.")
     return 0
 
 
