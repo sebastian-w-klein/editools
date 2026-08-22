@@ -1,0 +1,8 @@
+{
+  "_comment": "Words you have ruled on yourself. These outrank the dictionary. Copy this file to overrides.json (or ~/.hyphencheck/overrides.json) and edit. Use · or * to mark where the word may divide; use \"nobreak\" for a word that may not be divided at all.",
+
+  "Marvolene": "Mar·vo·lene",
+  "rulepig": "nobreak",
+  "onetwothreefour": "nobreak",
+  "SilverSovietsoupspoon": "nobreak"
+}
