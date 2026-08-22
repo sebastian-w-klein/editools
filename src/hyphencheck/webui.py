@@ -25,7 +25,7 @@ from .dictionary import Dictionary
 RESULTS: dict[str, Path] = {}
 WORKDIR = Path(tempfile.gettempdir()) / "hyphencheck-ui"
 
-PAGE = """<!doctype html>
+PAGE = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -77,6 +77,17 @@ PAGE = """<!doctype html>
          text-decoration:none; padding: 11px 20px; border-radius: 7px;
          font-family: system-ui, sans-serif; font-size: 15px; }
   .err { color: var(--accent); }
+  .ok { color: var(--ok); }
+  .keyform { margin-top: 12px; display: none; gap: 8px; }
+  .keyform.on { display: flex; }
+  .keyform input { flex: 1; padding: 9px 11px; border: 1px solid var(--line);
+                   border-radius: 6px; background: var(--bg); color: var(--ink);
+                   font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .keyform button { padding: 9px 16px; border: 0; border-radius: 6px; cursor: pointer;
+                    background: var(--accent); color: #fff; font-size: 14px;
+                    font-family: system-ui, sans-serif; }
+  .keyform button:disabled { opacity: .5; cursor: default; }
+  .linkish { color: var(--accent); cursor: pointer; text-decoration: underline; }
   code { background: rgba(128,128,128,.14); padding: 1px 5px; border-radius: 4px;
          font-size: 13px; }
 </style>
@@ -94,6 +105,11 @@ PAGE = """<!doctype html>
       <input type="file" id="file" accept="application/pdf,.pdf" hidden>
     </div>
     <div class="key" id="key"></div>
+    <div class="keyform" id="keyform">
+      <input type="password" id="keyinput" placeholder="Paste your Merriam-Webster key here"
+             autocomplete="off" spellcheck="false">
+      <button id="keysave">Save</button>
+    </div>
 
     <div class="status" id="status">
       <div class="bar"><i></i></div>
@@ -111,12 +127,55 @@ const status = document.getElementById('status');
 const out = document.getElementById('out');
 const msg = document.getElementById('msg');
 
-fetch('/status').then(r => r.json()).then(s => {
-  document.getElementById('key').innerHTML = s.has_key
-    ? 'Merriam-Webster key: <b>saved</b>. Rule 1 is checked against the dictionary itself.'
-    : 'No Merriam-Webster key saved, so Rule 1 falls back to spelling patterns and is '
-      + 'reported as unverified. Run <code>hyphencheck setup</code> to add one — see SETUP.md.';
-});
+const keyLine = document.getElementById('key');
+const keyForm = document.getElementById('keyform');
+const keyInput = document.getElementById('keyinput');
+const keySave = document.getElementById('keysave');
+
+function showKey(state) {
+  if (state.has_key) {
+    keyLine.innerHTML = 'Merriam-Webster key: <b>saved</b>. Rule 1 is checked against the '
+      + 'dictionary itself. <span class="linkish" id="changekey">Change it</span>';
+    keyForm.classList.remove('on');
+    document.getElementById('changekey').onclick = () => keyForm.classList.add('on');
+  } else {
+    keyLine.innerHTML = '<b>No Merriam-Webster key saved.</b> Rule 1 will fall back to spelling '
+      + 'patterns and be marked unverified. Every other rule works as normal. '
+      + 'Paste your free key below — see the README for how to get one.';
+    keyForm.classList.add('on');
+  }
+}
+fetch('/status').then(r => r.json()).then(showKey);
+
+keySave.onclick = () => {
+  const value = keyInput.value.trim();
+  if (!value) return;
+  keySave.disabled = true;
+  keyLine.innerHTML = 'Checking that key with Merriam-Webster…';
+  fetch('/key', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: value }),
+  })
+    .then(r => r.json())
+    .then(res => {
+      keySave.disabled = false;
+      if (res.ok) {
+        keyInput.value = '';
+        keyLine.innerHTML = '<span class="ok">' + esc(res.message) + '</span>';
+        keyForm.classList.remove('on');
+        setTimeout(() => fetch('/status').then(r => r.json()).then(showKey), 2500);
+      } else {
+        keyLine.innerHTML = '<span class="err">' + esc(res.message) + '</span>';
+        keyForm.classList.add('on');
+      }
+    })
+    .catch(e => {
+      keySave.disabled = false;
+      keyLine.innerHTML = '<span class="err">Could not save the key: ' + esc(e.message) + '</span>';
+    });
+};
+keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') keySave.click(); });
 
 drop.onclick = () => file.click();
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
@@ -204,6 +263,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _json(self, code: int, payload: dict):
         self._send(code, json.dumps(payload).encode(), "application/json")
 
+    def _handle_key(self):
+        """Take a Merriam-Webster key typed into the page, check it, save it."""
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+            key = str(payload.get("key", ""))
+        except ValueError:
+            self._json(200, {"ok": False, "message": "That did not look like a key."})
+            return
+        try:
+            ok, message = config.verify_and_save(key)
+        except Exception as exc:
+            ok, message = False, f"Could not reach Merriam-Webster: {exc}"
+        self._json(200, {"ok": ok, "message": message})
+
     def do_GET(self):
         if self.path == "/":
             self._send(200, PAGE.encode(), "text/html; charset=utf-8")
@@ -223,7 +297,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             self._json(404, {"error": "Not found"})
 
+    def _from_this_machine(self) -> bool:
+        """Reject posts from a page on some other site.
+
+        The server listens on localhost, but any web page the user happens to
+        have open can still post to localhost. Nothing here is dangerous, but
+        a stray request should not be able to overwrite a saved key.
+        """
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return True  # not a cross-site request
+        return origin in (f"http://{self.headers.get('Host', '')}",
+                          "http://localhost", "http://127.0.0.1")
+
     def do_POST(self):
+        if not self._from_this_machine():
+            self._json(403, {"error": "Refused a request from another site."})
+            return
+        if self.path == "/key":
+            self._handle_key()
+            return
         if self.path != "/audit":
             self._json(404, {"error": "Not found"})
             return
