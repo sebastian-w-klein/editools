@@ -8,6 +8,12 @@ drops a file onto a web page, gets a file back.
 operations on text and character formatting. One rule (matching index terms
 against the book's own text) is genuinely hard and belongs in a later phase.
 
+> **Status.** Phase 1 is built: the tracked-changes layer, the entry parser and
+> the four high-priority rules, validated against three published FSG indexes.
+> See [RULES.md](RULES.md) for what it decides and why. The guidelines and
+> sample indexes answered several of the open questions below; the answers are
+> recorded in RULES.md rather than restated here.
+
 ---
 
 ## The one real architectural difference from the Hyphenation Checker
@@ -131,9 +137,9 @@ need tuning against real books to avoid drowning the user in noise. Phase 3.
 
 ## Suggested phasing
 
-1. **Foundation + high priority.** The docx tracked-changes layer (proven), the
-   entry parser, the sort key, page-number parsing, the four high-priority rules.
-   Useful to her on its own.
+1. ~~**Foundation + high priority.**~~ **Done.** The docx tracked-changes layer,
+   the entry parser, the sort key, page-number parsing, the four high-priority
+   rules.
 2. **The lower-priority rules.** Mostly additive once the foundation is there;
    each is a small, independently testable rule, exactly like the
    Hyphenation Checker's nine.
