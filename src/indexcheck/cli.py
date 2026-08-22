@@ -27,8 +27,17 @@ def _check(args) -> int:
 
 
 def _list_rules(_args) -> int:
-    for rule in sorted(COLOURS):
-        print(f"  {rule:<16} highlighted in {COLOURS[rule]}")
+    """Show what gets fixed and what gets flagged."""
+    from . import rules as _rules
+
+    fixes = ["elision", "number-dash", "note-italics", "see-style",
+             "quotes", "whitespace"]
+    print("Fixed for you, as tracked changes:")
+    for rule in fixes:
+        print(f"  {rule}")
+    print("\nFlagged for you, highlighted and explained in a comment:")
+    for rule in sorted(set(_rules.COLOURS) - set(fixes)):
+        print(f"  {rule:<20} {COLOURS[rule]}")
     return 0
 
 
