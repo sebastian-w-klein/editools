@@ -1,5 +1,8 @@
 #!/bin/bash
-# macOS: double-click this file to open the Hyphenation Checker.
+# macOS: double-click this file to open the Editorial Tools.
+#
+# One icon opens both checkers. Which one you want is a click on the page
+# that appears — there is nothing else to start.
 
 # The Python environment goes in your home folder, never beside this file, so
 # that the tools still work when they are kept on a shared network volume.
@@ -42,4 +45,4 @@ fi
 # when there is nothing to do, and never a reason not to start.
 "$PY" -m editools update --auto 2>/dev/null
 
-exec "$PY" -m editools hyphen ui
+exec "$PY" -m editools ui

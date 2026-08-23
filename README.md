@@ -11,8 +11,9 @@ They used to be two separate downloads with two separate setups. They are now
 one, so there is one thing to install, one thing to keep, and **updates arrive
 by themselves** — you will never download a zip file again.
 
-You still use them as two tools. Each has its own icon, its own page and its
-own colour.
+You still use them as two tools. Each has its own page and its own colour;
+one icon opens both, and you pick the one you want from the page that
+appears.
 
 ---
 
@@ -67,24 +68,26 @@ On the project's GitHub page, click the green **Code** button, choose
 **This is the last time you download anything.** From here on the tools keep
 themselves up to date.
 
-## Step 3 — Open one
+## Step 3 — Open it
 
-Inside the folder there are two icons. Double-click whichever you need:
+Inside the folder there is one icon. Double-click it:
 
-* **On a Mac:** **`Index Checker.command`** or **`Hyphenation Checker.command`**
-* **On Windows:** **`Index Checker.bat`** or **`Hyphenation Checker.bat`**
+* **On a Mac:** **`Editorial Tools.command`**
+* **On Windows:** **`Editorial Tools.bat`**
 
 The first time, it spends a minute setting itself up. Then a page opens in your
-browser. Leave the small black window open while you use it — that is the
-program itself. Closing it closes the checker.
+browser offering both checkers. Click the one you want. Leave the small black
+window open while you use it — that is the program itself. Closing it closes
+both checkers.
 
 > **Mac, first time only:** if you get "cannot be opened because it is from an
 > unidentified developer", right-click the file, choose **Open**, then **Open**
-> again. You only do this once, per icon.
+> again. You only do this once.
 
-Both icons open the same program, just on different pages, and there is a link
-at the top of each page to get to the other one. Setting up either one sets up
-both.
+There is only ever one thing to start, whichever checker you need, and you can
+move between them from the link at the top of each page. If you double-click
+the icon again while the tools are already open, it simply brings the page
+back up rather than starting a second copy.
 
 The tools keep their Python setup in your own user folder rather than beside
 these files, so they work whether you keep this folder on your computer or on a
@@ -154,8 +157,7 @@ That is it. You will not be asked again.
 
 # Checking an index
 
-1. Double-click **`Index Checker.command`** (Mac) or **`Index Checker.bat`**
-   (Windows).
+1. Double-click **`Editorial Tools`** and choose the **Index Checker**.
 2. Drag the Word file onto the page. If you fill in the last page of the book
    first, it will also catch references pointing past the end.
 3. You get a list of what was fixed and what was flagged, and a **Download the
@@ -222,8 +224,7 @@ whole wish list and what is left.
 
 # Checking hyphenation in a proof
 
-1. Double-click **`Hyphenation Checker.command`** (Mac) or **`Hyphenation
-   Checker.bat`** (Windows).
+1. Double-click **`Editorial Tools`** and choose the **Hyphenation Checker**.
 2. Drag the proof PDF onto the page.
 3. Wait. A full book takes a minute or two the first time. Later books are
    faster, because every word looked up is remembered.
@@ -374,8 +375,13 @@ tells you the one command to run in this folder to finish the job. Until then a
 checker may not start, so it is worth doing straight away.
 
 **The browser page won't load / "can't connect"**
-The black window that starts the tool has been closed. Double-click the icon
+The black window that starts the tools has been closed. Double-click the icon
 again and leave it open.
+
+**"Something else on this computer is already using port 8765"**
+Another program has taken the port the tools use. The message tells you the one
+command to run to use a different one. This is rare, and nothing to do with
+having the tools open twice — opening them twice is handled and harmless.
 
 ---
 
