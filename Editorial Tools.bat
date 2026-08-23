@@ -1,8 +1,11 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Index Checker
+title Editorial Tools
 
-REM Windows: double-click this file to open the Index Checker.
+REM Windows: double-click this file to open the Editorial Tools.
+REM
+REM One icon opens both checkers. Which one you want is a click on the page
+REM that appears — there is nothing else to start.
 
 REM The Python environment goes on the local disk, never beside this file.
 REM Editorial folders usually live on a network drive, and a virtual
@@ -38,7 +41,7 @@ REM Install a new version if there is one. Checked once a day at most, silent
 REM when there is nothing to do, and never a reason not to start.
 "%PY%" -m editools update --auto 2>nul
 
-"%PY%" -m editools index ui
+"%PY%" -m editools ui
 pause
 exit /b 0
 

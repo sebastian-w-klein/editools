@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import shutil
 import threading
+import urllib.error
+import urllib.request
 import webbrowser
 
 import http.server
@@ -83,6 +85,22 @@ class Handler(BaseHandler):
             self.send_json(200, hyphen_page.run_audit(filename, data))
 
 
+def already_running(host: str, port: int) -> bool:
+    """Is one of our own servers already listening here?
+
+    Somebody who has the tools open and double-clicks the icon again — or
+    opens the other checker while the first is running — should get the page
+    they asked for, not a second copy fighting for the same port. Anything
+    else answering on the port is not ours and must not be mistaken for it.
+    """
+    try:
+        request = urllib.request.Request(f"http://{host}:{port}/update-status")
+        with urllib.request.urlopen(request, timeout=2) as response:
+            return response.headers.get("Server", "").startswith("editools")
+    except (urllib.error.URLError, OSError):
+        return False
+
+
 def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
           tool: str = "home", update_state: dict | None = None) -> int:
     """Run the tools until the window is closed.
@@ -94,11 +112,24 @@ def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
     if update_state:
         UPDATE_STATE.update(update_state)
 
-    server = http.server.ThreadingHTTPServer((host, port), Handler)
-    base = f"http://{host}:{port}"
-    url = base + START_PATHS.get(tool, "/")
+    url = f"http://{host}:{port}" + START_PATHS.get(tool, "/")
     name = {"index": "Index Checker", "hyphen": "Hyphenation Checker"}.get(
         tool, "Editorial Tools")
+
+    if already_running(host, port):
+        print(f"The tools are already open. Showing the {name} in your browser.")
+        print("The window that started them is the one to close when you finish.")
+        if open_browser:
+            webbrowser.open(url)
+        return 0
+
+    try:
+        server = http.server.ThreadingHTTPServer((host, port), Handler)
+    except OSError:
+        print(f"Something else on this computer is already using port {port},"
+              f"\nso the tools cannot start. Try again with a different one:"
+              f"\n\n    editools ui --port {port + 1}\n")
+        return 1
 
     print(f"{name} is running at {url}")
     print("Leave this window open while you use it. Press Ctrl-C to stop.")

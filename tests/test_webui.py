@@ -135,3 +135,47 @@ def test_the_window_reports_what_the_update_did(server, get, monkeypatch):
 def test_both_pages_show_the_notice(server, get):
     for page in ("/", "/index/", "/hyphen/"):
         assert "/update-status" in get(server + page)[1].decode()
+
+
+# -- opening it twice --------------------------------------------------------
+
+def test_a_second_launch_finds_the_first(server):
+    """Double-clicking the icon again should show the page, not crash.
+
+    Before the two checkers shared a server they had a port each, so this
+    could not happen. Now they share one, and somebody who opens the tools
+    twice — or opens one checker while the other is running — must not be
+    met with a stack trace about an address in use.
+    """
+    host, port = server.rsplit(":", 1)
+    assert webui.server.already_running(host.rsplit("/", 1)[-1], int(port))
+
+
+def test_something_else_on_the_port_is_not_mistaken_for_us():
+    """A stranger on 8765 is not one of our servers."""
+    import http.server
+    import threading
+
+    class Stranger(http.server.BaseHTTPRequestHandler):
+        server_version = "SomethingElse"
+
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Stranger)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        assert not webui.server.already_running("127.0.0.1", httpd.server_address[1])
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_nothing_listening_is_not_a_running_server():
+    # Port 1 is privileged and nothing of ours will ever be on it.
+    assert not webui.server.already_running("127.0.0.1", 1)
