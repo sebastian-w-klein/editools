@@ -78,3 +78,60 @@ def test_leading_word_keeps_an_em_dash_in_the_suffix():
 
 def test_possessives_survive_tokenisation():
     assert split_leading_word("er's,") == ("", "er's", ",")
+
+
+# -- words divided across a page turn ----------------------------------------
+
+def test_a_word_divided_across_a_page_turn_is_rejoined(page_turn_pdf):
+    """The continuation is on the next page's first body line, not its head."""
+    document = extract.load(str(page_turn_pdf))
+    words = {brk.word for brk in document.breaks}
+    assert "considered" in words
+    assert "afternoon" in words
+
+
+def test_a_page_turn_break_is_reported_on_the_page_it_starts(page_turn_pdf):
+    document = extract.load(str(page_turn_pdf))
+    by_word = {brk.word: brk for brk in document.breaks}
+    assert by_word["considered"].book_page == "40"   # the hyphen is on p.40
+    assert by_word["afternoon"].book_page == "43"
+    assert all(by_word[w].crosses_page for w in ("considered", "afternoon"))
+
+
+def test_running_heads_are_found_by_position_when_they_never_repeat(page_turn_pdf):
+    """Chapter-named heads appear on too few pages to be caught by counting.
+
+    Each head is on 2 of 6 pages here. Position in the margin identifies them
+    anyway — otherwise the head becomes the continuation of the broken word.
+    """
+    document = extract.load(str(page_turn_pdf))
+    assert not document.running_heads, "this proof has no head repeating often enough"
+    for page in document.pages:
+        assert len(document.furniture.marks(page.number)) >= 2  # head and folio
+
+
+def test_no_head_or_folio_is_ever_treated_as_part_of_a_word(page_turn_pdf):
+    document = extract.load(str(page_turn_pdf))
+    for brk in document.breaks:
+        assert "ONE" not in brk.word and "TWO" not in brk.word
+        assert "THREE" not in brk.word
+        assert not any(ch.isdigit() for ch in brk.word)
+
+
+def test_an_unreadable_page_turn_is_flagged_rather_than_invented(mw):
+    """If the continuation still reads as furniture, say so — do not guess.
+
+    A join that produced "considONE" would otherwise be checked as a word and
+    reported as a confident violation of a rule, against a word nobody set.
+    """
+    from hyphencheck import rules
+    from hyphencheck.model import Break, Verdict
+
+    brk = Break(
+        pdf_page=41, book_page="40", line_index=30, left="consid", right="ONE",
+        hyphen_char="-", line_text="…consid-", next_line_text="ONE: The Garden",
+        kind="furniture", crosses_page=True,
+    )
+    rules.evaluate(brk, rules.Context(dictionary=mw, tokens={}))
+    assert brk.worst is not Verdict.VIOLATION
+    assert "running head or folio" in " ".join(brk.notes)

@@ -217,13 +217,19 @@ function render(data) {
     '<div class="tally">' +
       '<div class="bad"><b>' + data.counts.violations + '</b>violations</div>' +
       '<div class="mid"><b>' + data.counts.needs_check + '</b>need a look</div>' +
+      '<div><b>' + data.counts.advisories + '</b>advisories</div>' +
       '<div><b>' + data.counts.checked + '</b>breaks checked</div>' +
       '<div><b>' + data.counts.pages + '</b>pages</div>' +
     '</div>' +
     '<a class="dl" href="/download/' + encodeURIComponent(data.id) + '">Download the spreadsheet</a>' +
     (rows ? '<table><thead><tr><th>Page</th><th>Break</th><th>Rules</th>' +
             '<th>Why</th></tr></thead><tbody>' + rows + '</tbody></table>'
-          : '<p style="margin-top:18px;color:var(--ok)">Nothing flagged.</p>');
+          : '<p style="margin-top:18px;color:var(--ok)">Nothing flagged.</p>') +
+    (data.counts.advisories
+      ? '<p style="margin-top:14px;color:var(--muted);font-size:13px;' +
+        'font-family:system-ui,sans-serif">Advisories are not listed here. They are on ' +
+        'their own tab in the spreadsheet, and none of them breaks a rule.</p>'
+      : '');
 }
 </script>
 </body>
@@ -357,6 +363,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "counts": {
                 "violations": counts["Violations"],
                 "needs_check": counts["Needs check"],
+                "advisories": counts["Advisories"],
                 "checked": counts["Real word divisions checked"],
                 "pages": counts["Pages"],
             },
@@ -368,7 +375,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "reason": brk.reason,
                 }
                 for brk in sorted(
-                    result.flagged + result.advisories,
+                    result.flagged,
                     key=lambda b: (int(b.book_page) if b.book_page.isdigit() else 10**6,
                                    b.line_index),
                 )

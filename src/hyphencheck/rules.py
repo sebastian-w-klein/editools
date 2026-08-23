@@ -423,6 +423,18 @@ ALL_RULES = (rule_1, rule_2, rule_3, rule_4, rule_5, rule_6, rule_7, rule_8, rul
 
 def evaluate(brk: Break, ctx: Context) -> Break:
     """Run every rule against *brk* and attach the findings."""
+    if brk.kind == "furniture":
+        brk.notes.append(
+            f"the word continues on the next page, but the text after the break "
+            f"(“{brk.right}”) reads as a running head or folio rather than the rest "
+            f"of the word — check this page turn by eye"
+        )
+        brk.findings = [
+            Finding(n, Verdict.NOT_APPLICABLE, "could not read the continuation of this word")
+            for n in range(1, 10)
+        ]
+        return brk
+
     if brk.kind == "artifact":
         brk.notes.append(
             "extraction artifact: a soft hyphen fused onto an em dash — no word is divided here"
@@ -450,7 +462,7 @@ def check_consistency(breaks: list[Break], ctx: Context) -> None:
     """
     by_word: dict[str, list[Break]] = defaultdict(list)
     for brk in breaks:
-        if brk.kind in ("artifact", "url"):
+        if brk.kind in ("artifact", "url", "furniture"):
             continue
         by_word[brk.word.lower()].append(brk)
 
@@ -481,19 +493,19 @@ def check_consistency(breaks: list[Break], ctx: Context) -> None:
 GENERATIONAL = ("Jr.", "Jr", "Sr.", "Sr", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X")
 
 
-def check_line_breaks(pages, running_heads) -> list[LineBreakFinding]:
+def check_line_breaks(pages, furniture) -> list[LineBreakFinding]:
     """Rule 6's initials, numerals and Jr./Sr. provisions.
 
     These are not hyphen breaks at all — they are places a line divides
     between two words — so they are collected separately and reported on
     their own tab.
     """
-    from .extract import _content_lines, _normalize  # local import: same package
+    from .extract import _content_lines  # local import: same package
 
     findings: list[LineBreakFinding] = []
     stream = []
     for page in pages:
-        for line in _content_lines(page, running_heads):
+        for line in _content_lines(page, furniture):
             stream.append((page, line))
 
     for position, (page, line) in enumerate(stream[:-1]):

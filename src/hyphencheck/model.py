@@ -73,7 +73,8 @@ class Break:
     char_after: str = ""          # character immediately following ``right``, "" if space/end
     trailing_punct: str = ""      # punctuation attached after ``right``
     italic: bool = False          # the broken word is set in an italic face
-    kind: str = "syllable"        # syllable | compound | url | artifact
+    kind: str = "syllable"        # syllable | compound | url | artifact | furniture
+    crosses_page: bool = False    # the word continues on the following page
     findings: list[Finding] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
