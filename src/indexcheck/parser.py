@@ -103,6 +103,12 @@ def _mask_quoted(text: str) -> str:
     A title in quotes can hold a comma and a year — '"Ucayali, 1871" curare,
     37' — and reading that comma as the boundary between the term and its
     page references turns 1871 into a page number.
+
+    The comma that sits *immediately* before the closing quote is the
+    exception: house style tucks the separator inside the quotation mark, so
+    the comma in '"Purple Rain," 148' is the boundary rather than part of the
+    title. Left masked, the term reads '"Purple Rain," 148' and folds to
+    "purplerain148", which files after every other Purple Rain entry.
     """
     out, quote = [], None
     for ch in text:
@@ -111,6 +117,8 @@ def _mask_quoted(text: str) -> str:
             out.append(ch)
         elif quote is not None and ch == quote:
             quote = None
+            if out and text[len(out) - 1] == ",":
+                out[-1] = ","
             out.append(ch)
         else:
             out.append(" " if quote else ch)
@@ -118,9 +126,21 @@ def _mask_quoted(text: str) -> str:
 
 
 def _term_of(segment: str) -> str:
-    """The term part of a segment — everything before its page references."""
-    m = re.search(r",\s*(?=\d|\(?see\b)", _mask_quoted(segment), re.IGNORECASE)
-    return (segment[: m.start()] if m else segment).strip()
+    """The term part of a segment — everything before its page references.
+
+    A cross-reference ends the term as surely as a page number does, and it is
+    not always a comma that introduces it: a dummy entry may be written
+    "hoe. See garden hoe". Left in, the whole clause folds into the sort key
+    and the entry files under "hoeseegardenhoe", well past every real h.
+    """
+    m = re.search(r"[,.]\s*(?=\(?see\b)|,(?P<quote>[\u201d\u2019\"']*)\s*(?=\d)",
+                  _mask_quoted(segment), re.IGNORECASE)
+    if not m:
+        return segment.strip()
+    # keep a closing quote on the term, so it reads '"Purple Rain,"' rather
+    # than being cut off mid-title at the comma
+    stop = m.end("quote") if m.group("quote") else m.start()
+    return segment[:stop].strip()
 
 
 def parse(text: str, italics: list[bool] | None = None) -> Entry:

@@ -15,27 +15,229 @@ useless.
 across 2,778 entries.** Rejecting every change restores all three files
 paragraph for paragraph, which is checked on each run.
 
+A fourth index — Leeds, *It's Got to Be Funky*, 1,098 entries — was added
+later, and every alphabetising rule below the first heading was forced by it.
+It now reports **9 errors and 1 query**, all ten confirmed by hand; the build
+before it reported 29, of which 21 were the checker's fault and one — the
+misfiled `R&B` — it had fitted a rule around rather than caught.
+
 ---
 
 ## Alphabetising
 
+### The key is a sequence of segments, not one string
+
+Alphabetising runs up to the first parenthesis or comma and starts again after
+it, so where two entries open with the same word it is what *follows* that word
+that decides the order:
+
+| | |
+|---|---|
+| the word on its own | `London` |
+| the word, then a parenthesis | `London (England)` |
+| the word, then a comma | `London, Jack` |
+| the word, then a number | `London 1900` |
+| the word, then more letters | `Londonderry` |
+
+A key is therefore alternating segments and separators —
+`("london", COMMA, "jack", END)` — with `END` ranking below both punctuation
+marks, which is what puts the bare word first. The last two tiers need no rank:
+with spaces ignored the digits and letters simply continue the segment, and a
+digit already sorts below a letter.
+
+Before this, everything after the first parenthesis or comma was thrown away
+except a single tiebreak string. `London` and `London (England)` reduced to the
+same key, so `London (Ontario)` filed before `London (England)` without
+complaint, and a bare `London` could sit anywhere among the `London,` entries.
+
+### A bracketed date is a qualifier, not a page reference
+
+The term ends at the first comma-separated piece that reads as page references.
+Applying that test inside brackets too was wrong: `Smith, John (1820–1880)` and
+`Smith, John (1900–1970)` both lost their dates and collapsed onto one key.
+Page references are never bracketed in this style, so only a comma piece is
+tested.
+
+### The comma inside a closing quote is the separator
+
+House style tucks the comma that divides a term from its page references
+inside the quotation mark: `“Purple Rain,” 148`. Masking quoted spans — which
+is what stops `“Ucayali, 1871” curare` losing its year — hid that comma too,
+so the term read `“Purple Rain,” 148` and folded to `purplerain148`, filing
+after every other Purple Rain entry and flagging three correct ones. The comma
+*immediately* before a closing quote is exposed again; one in the middle of a
+quoted phrase stays masked. The syntax rule then expects only a space in the
+gap, since the term already carries its comma.
+
+### A bracket with nothing in front of it is not a qualifier
+
+`“(I Wanna) Testify”` and `(Music from) The Elder` open with a parenthesis, so
+cutting the term there left an empty first segment that sorted before every
+entry in the index. There is nothing for such a bracket to qualify: it is part
+of the title, and the term files under `iwannatestify`.
+
+### One misfiling should not flag the whole run after it
+
+An entry filed too early sits above everything that legitimately follows, and
+blaming the followers turns one misfiling into a wall. `“(I Wanna) Testify”`,
+landing among the "I Got" entries, drew fourteen flags against entries that
+were all correctly placed. When the entry after next fits where the intruder
+sits, the intruder is reported instead and the run carries on from the
+follower.
+
+### A cross-reference is not part of the name
+
+A dummy entry may be written `hoe. See garden hoe`, with a full stop rather than
+the comma the term parser looked for. The whole clause then folded into the key
+and the entry filed under `hoeseegardenhoe`, past every real h. A full stop
+introduces a cross-reference as readily as a comma does.
+
+### Two entries that alphabetise the same are reported
+
+When a person, a place and a thing share a name they file in normal
+alphabetical order — but if their keys are *identical*, sorting cannot say
+which comes first and the guidelines' remedy is to tell them apart by hand,
+`London (England)` against `London, Amy`. The pair is flagged as **check**,
+since it needs an editor's eye rather than a rule.
+
 ### The primary key ignores all punctuation, not just the listed characters
 
 §5 says to ignore "spaces, hyphens, periods, single and double quote marks".
-Taken literally, `AT&T` folds to `at&t` and files *before* `Atlantic Monthly`,
-because `&` sorts below `l`. The published index puts Atlantic Monthly first,
-which is what you get by dropping the ampersand entirely: `att`. `E=mc²`
-settles it the same way — it appears after `elocution`, which only works if the
-`=` is dropped. So §5's list is illustrative and the rule is "ignore all
-punctuation".
+Taken literally, `E=mc²` folds to `e=mc2` and files before `elocution`, because
+`=` sorts below any letter. The published index puts it *after* elocution,
+which only works if the `=` is dropped. So §5's list is illustrative and the
+rule is "ignore all punctuation".
 
-### A tiebreak on the given name
+### A symbol that stands for a word is read aloud
 
-Because the key drops everything after a comma, `New, Arthur` and `New, James`
-reduce to the same string. §5's own example nonetheless sorts Arthur before
-James, so a second key compares the given name. Without it the checker cannot
-see that `Miller, Glenn` before `Miller, George A.` is wrong — which it is, in
-a published index.
+Folding `&` away with the rest of the punctuation put `A&E` under `ae`, between
+Adore and AEG, and reported seven correct entries as misfiled. A symbol is a
+word, not a punctuation mark, and an index files it as it is read: `A&E` goes
+under `a and e`, before Abramovic.
+
+`R&B` is what settles *how* to read it, and it took the editor to settle it,
+because the index itself is wrong there. Leeds files `R&B` at the head of the
+R's, before `race relations`. Nothing legitimate puts it there — read aloud it
+is `randb` and folded away it is `rb`, and both follow `race` — so it looked
+like evidence for a third rule, that a symbol ends its segment the way a
+parenthesis does, giving `("r", …)`. That reading fits all three of the index's
+symbol entries, which is exactly why it is a trap: it fits by reproducing the
+mistake. The house rule is `R&D` after `radio`, so the symbol is read aloud and
+the entry is misfiled. It is now reported.
+
+| | folded away | ends the segment | **read aloud** |
+|---|---|---|---|
+| `A&E` before `Abramovic` | ✗ | ✓ | ✓ |
+| `Red Hot + Riot` before `Red Hot Organization` | ✗ | ✓ | ✓ |
+| `radio stations` before `R&B` (subentry) | ✓ | ✗ | ✓ |
+| `R&B` before `race relations` | ✗ | ✓ | ✗ — and it should be |
+
+A symbol that reads more than one way offers both, as a numeral does: `+` is
+"and" or "plus", and `Red Hot + Riot` is right under either. The reading
+applies to a whole key rather than one segment, since an index reads its
+symbols aloud everywhere or nowhere.
+
+Folding the symbol away is a real convention too — it is what puts `Atlantic
+Monthly` before `AT&T` in the earlier corpus — so it is kept as a second
+reading and an ordering that needs it comes back as **check**. That is not what
+saves a misfiling like `R&B`, which is wrong under both readings.
+
+`&`, `+`, `%` and `@` are read aloud. `=` is not: `E=mc²` files after
+`elocution`, which reading it aloud would break. Nor is `$`, where the word is
+spoken after the number it precedes.
+
+### The comma inside a closing quote is the separator
+
+House style tucks the comma that divides a term from its page references
+inside the quotation mark: `“Purple Rain,” 148`. Masking quoted spans — which
+is what stops `“Ucayali, 1871” curare` losing its year — hid that comma too,
+so the term read `“Purple Rain,” 148` and folded to `purplerain148`, filing
+after every other Purple Rain entry and flagging three correct ones. The comma
+*immediately* before a closing quote is exposed again; one in the middle of a
+quoted phrase stays masked. The syntax rule then expects only a space in the
+gap, since the term already carries its comma.
+
+### A bracket with nothing in front of it is not a qualifier
+
+`“(I Wanna) Testify”` and `(Music from) The Elder` open with a parenthesis, so
+cutting the term there left an empty first segment that sorted before every
+entry in the index. There is nothing for such a bracket to qualify: it is part
+of the title, and the term files under `iwannatestify`.
+
+### One misfiling should not flag the whole run after it
+
+An entry filed too early sits above everything that legitimately follows, and
+blaming the followers turns one misfiling into a wall. `“(I Wanna) Testify”`,
+landing among the "I Got" entries, drew fourteen flags against entries that
+were all correctly placed. When the entry after next fits where the intruder
+sits, the intruder is reported instead and the run carries on from the
+follower.
+
+### A cross-reference is not part of the name
+
+A dummy entry may be written `hoe. See garden hoe`, with a full stop rather than
+the comma the term parser looked for. The whole clause then folded into the key
+and the entry filed under `hoeseegardenhoe`, past every real h. A full stop
+introduces a cross-reference as readily as a comma does.
+
+### Two entries that alphabetise the same are reported
+
+When a person, a place and a thing share a name they file in normal
+alphabetical order — but if their keys are *identical*, sorting cannot say
+which comes first and the guidelines' remedy is to tell them apart by hand,
+`London (England)` against `London, Amy`. The pair is flagged as **check**,
+since it needs an editor's eye rather than a rule.
+
+### The primary key ignores all punctuation, not just the listed characters
+
+§5 says to ignore "spaces, hyphens, periods, single and double quote marks".
+Taken literally, `E=mc²` folds to `e=mc2` and files before `elocution`, because
+`=` sorts below any letter. The published index puts it *after* elocution,
+which only works if the `=` is dropped. So §5's list is illustrative and the
+rule is "ignore all punctuation".
+
+### A symbol that stands for a word ends the segment it is in
+
+Folding `&` away with the rest of the punctuation put `A&E` under `ae`, between
+Adore and AEG, and reported seven correct entries as misfiled. A symbol is read
+aloud, so it is a word rather than a punctuation mark — but *reading it aloud
+into the fold* is not what an index does either. The Leeds index settles it
+with three cases, and only one treatment fits all three:
+
+| | ignored | read aloud | ends the segment |
+|---|---|---|---|
+| `A&E` before `Abramovic` | ✗ | ✓ | ✓ |
+| `R&B` before `race relations` | ✗ | ✗ | ✓ |
+| `Red Hot + Riot` before `Red Hot Organization` | ✗ | ✓ | ✓ |
+
+`R&B` is the one that decides it: read aloud it folds to `randb`, which files
+*after* `race relations`, yet the index puts it at the head of the R's. What
+files it there is the symbol ending the segment — the key becomes
+`("r", SYMBOL, "b")`, and `r` sorts before `race` for the same reason a bare
+`London` sorts before `London (England)`. Reading the symbol aloud is right in
+spirit: it makes the symbol a word, and a word boundary is what the precedence
+rule ranks on.
+
+Ignoring the symbol is a real convention too — it is what puts `Atlantic
+Monthly` before `AT&T` in the earlier corpus — so it is kept as a second
+reading and an ordering that needs it comes back as **check**.
+
+`SYMBOL` ranks after `COMMA`, on the grounds that a symbol stands for a word
+and the guidelines put "word followed by letters" last. No index seen so far
+has two entries that turn on it.
+
+Only `&` and `+` are treated this way, both attested. `%`, `$`, `@` and `=` are
+still folded away: `E=mc²` files after `elocution`, which ending the segment at
+the `=` would break.
+
+### The given name is a segment, not a run-on
+
+`New, Arthur` and `New, James` share a first segment, and §5 sorts them before
+`newborn` — which only works if the given name is compared as a segment of its
+own rather than run together with the surname. It is what catches `Miller,
+Glenn` before `Miller, George A.` — wrong, and in a published index. The same
+segmenting continues past the second cut, so `Hoe, Robert` files before
+`Hoe, Robert, Jr.`
 
 ### Only *abbreviated* personal titles are stripped
 
@@ -67,6 +269,14 @@ reading would have saved it. Nothing is silently swallowed.
 read "nine one one" or "nine hundred eleven", and `1984` "nineteen
 eighty-four". All the readings are offered. This is what lets `911/999` sit
 among the n's, and `1956 consent decree for` sit after `nickname for`.
+
+Every one of those readings is as good as the others, so a numeral is *not*
+reported: it is a house key, not an alternative. Leeds files `8 (album)` under
+eight, `55 Grand` under fifty-five and `1999 Tour` under nineteen ninety-nine,
+all correctly, and the earlier build queried all five. The digits-as-written
+fold stays a reading too, which is what keeps the guidelines' "word followed by
+a number" tier working for `London 1900` against `Londonderry` — there the
+digits follow a word rather than opening the entry, so no spelling applies.
 
 **Leading articles.** §8 moves an article to the end of a title of a work, but
 a name keeps it: `"El Pastor"` files under Pastor, and `al-Aqsa Mosque` under
