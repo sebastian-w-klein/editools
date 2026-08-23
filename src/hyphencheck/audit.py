@@ -47,12 +47,23 @@ class AuditResult:
     def artifacts(self) -> list[Break]:
         return [b for b in self.breaks if b.kind == "artifact"]
 
+    @property
+    def unreadable(self) -> list[Break]:
+        """Page turns where the continuation of the word could not be read."""
+        return [b for b in self.breaks if b.kind == "furniture"]
+
+    @property
+    def across_pages(self) -> list[Break]:
+        return [b for b in self.breaks if b.crosses_page and b.kind != "artifact"]
+
     def counts(self) -> dict[str, int]:
         return {
             "Pages": self.page_count,
             "End-of-line hyphens found": len(self.breaks),
             "Extraction artifacts (no real break)": len(self.artifacts),
             "Real word divisions checked": len(self.breaks) - len(self.artifacts),
+            "Words divided across a page turn": len(self.across_pages),
+            "Page turns needing a look by eye": len(self.unreadable),
             "Unique words looked up": self.unique_words,
             "Violations": len(self.violations),
             "Needs check": len(self.needs_check),
@@ -102,7 +113,7 @@ def run(
     words = sorted({
         strip_possessive(b.word).lower()
         for b in document.breaks
-        if b.kind not in ("artifact", "url")
+        if b.kind not in ("artifact", "url", "furniture")
     })
     if not dictionary.offline:
         say(f"Looking up {len(words)} distinct words in Merriam-Webster…")
@@ -116,7 +127,7 @@ def run(
     rules.check_consistency(document.breaks, ctx)
 
     say("Checking line breaks for initials and numerals…")
-    line_breaks = rules.check_line_breaks(document.pages, document.running_heads)
+    line_breaks = rules.check_line_breaks(document.pages, document.furniture)
 
     dictionary.save()
     return AuditResult(

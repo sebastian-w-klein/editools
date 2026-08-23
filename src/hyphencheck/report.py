@@ -171,10 +171,16 @@ def _add_summary(workbook, result: AuditResult) -> None:
 
     row += 2
     sheet.cell(row=row, column=1, value="Every flagged item, by page").font = TITLE_FONT
+    row += 1
+    sheet.cell(
+        row=row, column=1,
+        value=f"Advisories are excluded here — {len(result.advisories)} of them are on "
+              f"the Advisories tab. Nothing on that tab breaks a rule.",
+    )
     row += 2
     _write_header(sheet, ["Page", "Break as set", "Verdict", "Rules", "Reason"], row=row)
     row += 1
-    for brk in sorted(result.flagged + result.advisories, key=_sort_key):
+    for brk in sorted(result.flagged, key=_sort_key):
         values = [_page(brk), brk.display, brk.worst.value, brk.flagged_rules, brk.reason]
         for column, value in enumerate(values, start=1):
             cell = sheet.cell(row=row, column=column, value=value)
@@ -185,8 +191,8 @@ def _add_summary(workbook, result: AuditResult) -> None:
             sheet.cell(row=row, column=3).fill = fill
         row += 1
 
-    if not result.flagged and not result.advisories:
-        sheet.cell(row=row, column=1, value="No violations found.")
+    if not result.flagged:
+        sheet.cell(row=row, column=1, value="Nothing flagged.")
 
     _autosize(sheet, {1: 12, 2: 24, 3: 14, 4: 20, 5: 95})
 
@@ -250,8 +256,15 @@ def write(result: AuditResult, output_path: str | Path) -> Path:
 
     _add_summary(workbook, result)
     _add_instance_sheet(
-        workbook, "Flagged Items", result.flagged + result.advisories,
-        note="Every break that needs your attention, sorted by page.",
+        workbook, "Flagged Items", result.flagged,
+        note="Every break that needs your attention, sorted by page. "
+             "Advisories are not here — they are on their own tab.",
+    )
+    _add_instance_sheet(
+        workbook, "Advisories", result.advisories,
+        note="Legal breaks that are worth a glance but usually need no change: "
+             "Rule 7 prefers a different point, or the same word is divided two "
+             "ways in different places. Nothing here breaks a rule.",
     )
     _add_instance_sheet(
         workbook, "All Instances", result.breaks,

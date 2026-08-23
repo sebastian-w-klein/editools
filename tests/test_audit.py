@@ -73,7 +73,8 @@ def test_the_spreadsheet_has_the_tabs_and_page_numbers(proof_pdf, tmp_path):
     path = report.write(result, tmp_path / "audit.xlsx")
     workbook = load_workbook(path)
     assert workbook.sheetnames == [
-        "Summary", "Flagged Items", "All Instances", "Line Breaks (Rule 6)", "Rule Key",
+        "Summary", "Flagged Items", "Advisories", "All Instances",
+        "Line Breaks (Rule 6)", "Rule Key",
     ]
 
     sheet = workbook["All Instances"]
@@ -89,6 +90,36 @@ def test_flagged_rows_all_state_a_reason(proof_pdf, tmp_path):
     result = run_audit(proof_pdf, tmp_path)
     for brk in result.flagged + result.advisories:
         assert brk.reason, f"{brk.display} was flagged with no reason given"
+
+
+def test_advisories_are_kept_off_the_flagged_tab(proof_pdf, tmp_path):
+    """They can nearly always be ignored, so they must not crowd the real work."""
+    result = run_audit(proof_pdf, tmp_path)
+    assert result.advisories, "this proof should raise at least one advisory"
+
+    path = report.write(result, tmp_path / "audit.xlsx")
+    workbook = load_workbook(path)
+
+    flagged = workbook["Flagged Items"]
+    verdicts = {row[5] for row in flagged.iter_rows(min_row=4, max_col=6, values_only=True)}
+    assert Verdict.ADVISORY.value not in verdicts
+
+    advisories = workbook["Advisories"]
+    listed = [row[2] for row in advisories.iter_rows(min_row=4, max_col=3, values_only=True)]
+    assert {brk.display for brk in result.advisories} <= set(listed)
+
+
+def test_the_summary_says_where_the_advisories_went(proof_pdf, tmp_path):
+    result = run_audit(proof_pdf, tmp_path)
+    path = report.write(result, tmp_path / "audit.xlsx")
+    summary = workbook_text(load_workbook(path)["Summary"])
+    assert "Advisories tab" in summary
+
+
+def workbook_text(sheet) -> str:
+    return " ".join(
+        str(cell) for row in sheet.iter_rows(values_only=True) for cell in row if cell
+    )
 
 
 def test_artifacts_are_not_counted_as_word_divisions(proof_pdf, tmp_path):

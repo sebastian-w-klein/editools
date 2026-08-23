@@ -128,6 +128,34 @@ The same word divided at two different points in one book is flagged on every
 instance, with the pages listed. Both points can be legal and it is still an
 error in the proof. This is what `Mar-/volene` versus `Marvol-/ene` is.
 
+### Words divided across a page turn
+
+A word broken on a page's last line continues on the *next page's first line of
+body text* — not on its running head or folio. Getting that wrong does not
+merely lose a break: it joins two unrelated fragments into a word nobody set
+(`consid-` + `ONE: The Garden` → `considONE`) and then reports that word as a
+confident rule violation.
+
+So page furniture is identified before any break is read, by three independent
+signals, any one of which is enough:
+
+1. **Position.** A running head and a folio hold the same height on every page.
+   Short lines that recur in the top or bottom margin band across at least a
+   third of the pages are furniture, whatever they say. This is the signal that
+   survives a running head naming the chapter, which never repeats often enough
+   to be found by counting text.
+2. **Geometry.** Furniture is separated from the text block by much more than a
+   line's leading. Short lines set apart by more than 1.8× the usual leading are
+   peeled off each end of the page. The leading is estimated from the *most
+   common* gap rather than the median, because each page's margins contribute a
+   couple of very large gaps that drag a median upward.
+3. **Repeated text.** Short lines appearing at a page edge three or more times.
+
+If a break still crosses a page turn into something that reads as furniture —
+all capitals, or containing digits — the row is reported as unreadable, with a
+note asking for that page turn to be checked by eye. Refusing to answer is the
+right outcome there; inventing a word and citing a rule against it is not.
+
 ### Extraction artifacts
 
 A soft hyphen fused onto an em dash by the PDF text layer (`patrons—-`) divides

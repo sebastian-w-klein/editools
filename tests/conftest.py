@@ -106,4 +106,12 @@ def proof_pdf(tmp_path) -> Path:
     return build(tmp_path / "sample_proof.pdf")
 
 
+@pytest.fixture
+def page_turn_pdf(tmp_path) -> Path:
+    """A proof with words divided across page turns, under chapter-named heads."""
+    from make_fixture import build_page_turn
+
+    return build_page_turn(tmp_path / "page_turn_proof.pdf")
+
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))

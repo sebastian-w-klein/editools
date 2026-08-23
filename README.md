@@ -290,6 +290,7 @@ word lookups — the proof itself never goes anywhere.
 |---|---|
 | **Summary** | Totals, how many breaks each rule flagged, and every flagged item by page |
 | **Flagged Items** | Only what needs your attention, sorted by page |
+| **Advisories** | Legal breaks worth a glance that usually need no change — kept off the Flagged tab so they don't crowd the real work |
 | **All Instances** | Every end-of-line hyphen in the book, with each rule's verdict in columns R1–R9 |
 | **Line Breaks (Rule 6)** | Breaks *between* words: split initials, `Elizabeth / II`, `Sammy Davis / Jr.` |
 | **Rule Key** | What each column means |
@@ -299,8 +300,9 @@ Four verdicts:
 - **VIOLATION** — a rule is broken. The Reason column says which and why.
 - **NEEDS CHECK** — the tool will not guess. Usually an invented name, or a
   word Merriam-Webster does not carry.
-- **ADVISORY** — the break is allowed, but Rule 7 prefers a different point, or
-  the book divides the same word two different ways in two places.
+- **ADVISORY** — the break is allowed and breaks no rule. Rule 7 would prefer a
+  different point, or the book divides the same word two ways in two places.
+  These live on their own tab and can usually be ignored entirely.
 - **OK** — nothing wrong with it.
 
 The `All Instances` tab has a column for every rule so you can see at a glance
@@ -429,6 +431,11 @@ It flags; you decide. Specifically:
 - **Rejoining a compound can be genuinely ambiguous** (`re-cover` / `recover`).
   Where both readings are real words and the book uses both, the row is marked
   NEEDS CHECK rather than decided.
+- **A word divided across a page turn** is rejoined with the first line of body
+  text overleaf, skipping the running head and folio. On the rare proof where
+  the continuation still cannot be read confidently, the row says so and asks
+  you to check that page turn by eye, rather than inventing a word and
+  reporting it as a violation.
 
 ## How it works
 

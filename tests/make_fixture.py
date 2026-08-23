@@ -93,6 +93,78 @@ def build(path: str | Path) -> Path:
     return path
 
 
+# --------------------------------------------------------------------------
+# A second proof, for words divided across a page turn.
+# --------------------------------------------------------------------------
+
+#: Body lines, repeated to give each page a full text block. Density matters:
+#: the margins are recognised by how far they sit from the text, which needs
+#: the text to look like a text block.
+TURN_BODY = [
+    "The morning was cold and she walked the length of the",
+    "garden without once looking back toward the quiet house",
+    "where the others were still sleeping under heavy blankets.",
+    "She had rehearsed the words for weeks and still they came",
+    "out wrong whenever she tried to say them to anyone at all.",
+    "There was frost on the grass and the light was very thin.",
+    "Somewhere behind her a door opened and then closed again.",
+    "She counted her steps to the gate and back, twice over.",
+]
+
+#: Pages whose last line stops mid-word, and the pages that finish it.
+TURN_TAILS = {
+    0: "and so at last she stopped and consid-",
+    3: "the light on the water and the after-",
+}
+TURN_HEADS = {
+    1: "ered what she might yet say to him before the day ended.",
+    4: "noon folded itself away without any of them noticing it.",
+}
+
+#: Running heads that name the chapter, so no one of them appears on enough
+#: pages to be found by counting repeated text. Position has to catch these.
+TURN_CHAPTERS = [
+    "ONE: The Garden", "ONE: The Garden", "TWO: The Letters",
+    "TWO: The Letters", "THREE: The Water", "THREE: The Water",
+]
+
+TURN_FIRST_FOLIO = 40
+
+
+def build_page_turn(path: str | Path) -> Path:
+    """A proof where words divide across page boundaries."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pdf = canvas.Canvas(str(path), pagesize=A5)
+    width, height = A5
+
+    for index in range(len(TURN_CHAPTERS)):
+        pdf.setFont("Times-Roman", 8)
+        pdf.drawCentredString(width / 2, height - 40, TURN_CHAPTERS[index])
+
+        body = (
+            ([TURN_HEADS[index]] if index in TURN_HEADS else [])
+            + TURN_BODY
+            + ([TURN_TAILS[index]] if index in TURN_TAILS else [])
+        )
+        y = height - 75
+        for line in body:
+            x = 45
+            for word in line.split(" "):
+                pdf.setFont("Times-Roman", 10)
+                pdf.drawString(x, y, word)
+                x += pdf.stringWidth(word + " ", "Times-Roman", 10)
+            y -= 16
+
+        pdf.setFont("Times-Roman", 9)
+        pdf.drawCentredString(width / 2, 32, str(TURN_FIRST_FOLIO + index))
+        pdf.showPage()
+
+    pdf.save()
+    return path
+
+
 if __name__ == "__main__":
-    target = Path(__file__).parent / "fixtures" / "sample_proof.pdf"
-    print(build(target))
+    fixtures = Path(__file__).parent / "fixtures"
+    print(build(fixtures / "sample_proof.pdf"))
+    print(build_page_turn(fixtures / "page_turn_proof.pdf"))
