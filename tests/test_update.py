@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from hyphencheck import update as updater
-from hyphencheck.update import Marker, UpdateError
+from editools import update as updater
+from editools.update import Marker, UpdateError
 
 SHA = "a" * 40
 NEWER = "b" * 40
@@ -26,36 +26,36 @@ def build_archive(files: dict[str, str], sha: str = NEWER) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         for path, content in files.items():
-            archive.writestr(f"hyphenchecker-{sha}/{path}", content)
+            archive.writestr(f"editools-{sha}/{path}", content)
     return buffer.getvalue()
 
 
 DEFAULT_FILES = {
-    "pyproject.toml": "[project]\nname = 'hyphencheck'\ndependencies = ['pdfplumber']\n",
+    "pyproject.toml": "[project]\nname = 'editools'\ndependencies = ['pdfplumber']\n",
     "README.md": "# new readme\n",
-    "src/hyphencheck/__init__.py": "__version__ = '2.0.0'\n",
-    "src/hyphencheck/rules.py": "# new rules\n",
+    "src/editools/__init__.py": "__version__ = '2.0.0'\n",
+    "src/editools/rules.py": "# new rules\n",
 }
 
 
 @pytest.fixture
 def install(tmp_path) -> Path:
     """A project folder that looks like a working install."""
-    root = tmp_path / "hyphenchecker"
-    (root / "src" / "hyphencheck").mkdir(parents=True)
+    root = tmp_path / "editools"
+    (root / "src" / "editools").mkdir(parents=True)
     (root / "pyproject.toml").write_text(DEFAULT_FILES["pyproject.toml"], encoding="utf-8")
     (root / "README.md").write_text("# old readme\n", encoding="utf-8")
-    (root / "src" / "hyphencheck" / "__init__.py").write_text("__version__ = '1.0.0'\n", encoding="utf-8")
-    (root / "src" / "hyphencheck" / "rules.py").write_text("# old rules\n", encoding="utf-8")
+    (root / "src" / "editools" / "__init__.py").write_text("__version__ = '1.0.0'\n", encoding="utf-8")
+    (root / "src" / "editools" / "rules.py").write_text("# old rules\n", encoding="utf-8")
 
     # The things that must survive an update.
     (root / ".venv" / "bin").mkdir(parents=True)
-    (root / ".venv" / "bin" / "hyphencheck").write_text("#!/bin/sh\n", encoding="utf-8")
+    (root / ".venv" / "bin" / "editools").write_text("#!/bin/sh\n", encoding="utf-8")
     (root / "overrides.json").write_text('{"Marvolene": "Mar*vo*lene"}', encoding="utf-8")
 
     Marker(sha=SHA, installed=["README.md", "pyproject.toml",
-                               "src/hyphencheck/__init__.py",
-                               "src/hyphencheck/rules.py"]).write(root)
+                               "src/editools/__init__.py",
+                               "src/editools/rules.py"]).write(root)
     return root
 
 
@@ -107,14 +107,14 @@ def test_a_stale_check_does_go_to_the_network(install):
 def test_an_update_replaces_the_source(install):
     result = updater.run(install, fetch=fake_fetch())
     assert result.updated
-    assert (install / "src" / "hyphencheck" / "rules.py").read_text() == "# new rules\n"
+    assert (install / "src" / "editools" / "rules.py").read_text() == "# new rules\n"
     assert (install / "README.md").read_text() == "# new readme\n"
 
 
 def test_the_virtual_environment_is_never_touched(install):
     """Losing .venv would send the user back to reinstalling from scratch."""
     updater.run(install, fetch=fake_fetch())
-    assert (install / ".venv" / "bin" / "hyphencheck").is_file()
+    assert (install / ".venv" / "bin" / "editools").is_file()
 
 
 def test_the_users_own_overrides_survive(install):
@@ -124,9 +124,9 @@ def test_the_users_own_overrides_survive(install):
 
 def test_a_file_dropped_from_the_project_is_removed(install):
     files = dict(DEFAULT_FILES)
-    del files["src/hyphencheck/rules.py"]
+    del files["src/editools/rules.py"]
     updater.run(install, fetch=fake_fetch(files=files))
-    assert not (install / "src" / "hyphencheck" / "rules.py").exists()
+    assert not (install / "src" / "editools" / "rules.py").exists()
 
 
 def test_only_files_a_past_update_installed_are_ever_removed(install):
@@ -143,7 +143,7 @@ def test_the_marker_records_what_was_installed(install):
     updater.run(install, fetch=fake_fetch())
     marker = Marker.read(install)
     assert marker.sha == NEWER
-    assert "src/hyphencheck/rules.py" in marker.installed
+    assert "src/editools/rules.py" in marker.installed
     assert marker.updated_at
 
 
@@ -153,14 +153,14 @@ def test_an_archive_that_is_not_this_project_is_refused(install):
     files = {"README.md": "# something else entirely\n"}
     with pytest.raises(UpdateError, match="does not look like"):
         updater.run(install, fetch=fake_fetch(files=files))
-    assert (install / "src" / "hyphencheck" / "rules.py").read_text() == "# old rules\n"
+    assert (install / "src" / "editools" / "rules.py").read_text() == "# old rules\n"
 
 
 def test_a_path_climbing_out_of_the_folder_is_refused(install):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr(f"hyphenchecker-{NEWER}/src/hyphencheck/__init__.py", "x = 1\n")
-        archive.writestr(f"hyphenchecker-{NEWER}/../../escaped.txt", "pwned\n")
+        archive.writestr(f"editools-{NEWER}/src/editools/__init__.py", "x = 1\n")
+        archive.writestr(f"editools-{NEWER}/../../escaped.txt", "pwned\n")
     with pytest.raises(UpdateError, match="unsafe path"):
         updater.apply_archive(install, buffer.getvalue(), [])
     assert not (install.parent.parent / "escaped.txt").exists()
@@ -194,7 +194,7 @@ def test_changed_dependencies_trigger_a_reinstall(install, monkeypatch):
     ran: list[Path] = []
     monkeypatch.setattr(updater, "reinstall", lambda root: (ran.append(root), (True, ""))[1])
     files = dict(DEFAULT_FILES)
-    files["pyproject.toml"] = "[project]\nname = 'hyphencheck'\ndependencies = ['pdfplumber', 'brand-new']\n"
+    files["pyproject.toml"] = "[project]\nname = 'editools'\ndependencies = ['pdfplumber', 'brand-new']\n"
     result = updater.run(install, fetch=fake_fetch(files=files))
     assert ran == [install] and result.reinstalled
 
@@ -213,3 +213,42 @@ def test_the_project_folder_is_found_from_the_running_code():
     root = updater.project_root()
     assert root is not None
     assert (root / "pyproject.toml").is_file()
+
+
+# -- updating without being asked -------------------------------------------
+
+def test_auto_installs_a_new_version(install, monkeypatch):
+    """The launchers call this, so nobody ever downloads a zip by hand."""
+    done = {}
+
+    def fake_run(root, force=False, fetch=None):
+        done["root"] = root
+        return updater.Result(True, "Updated to bbbbbbb (4 files).", sha="b" * 40)
+
+    monkeypatch.setattr(updater, "check", lambda root, **kw: (True, "b" * 40, updater.Marker()))
+    monkeypatch.setattr(updater, "run", fake_run)
+    state = updater.auto(install)
+    assert state["available"] is True and state["installed"] is True
+    assert done["root"] == install
+
+
+def test_auto_says_nothing_when_up_to_date(install, monkeypatch):
+    monkeypatch.setattr(updater, "check", lambda root, **kw: (False, "a" * 40, updater.Marker()))
+    monkeypatch.setattr(updater, "run",
+                        lambda *a, **k: pytest.fail("nothing to install"))
+    state = updater.auto(install)
+    assert state == {"available": False, "installed": False, "latest": "a" * 7}
+
+
+def test_auto_never_stops_a_launch(install, monkeypatch):
+    """A train, a blocked office network, a folder that cannot be written to."""
+    def explode(root, **kw):
+        raise updater.UpdateError("Could not reach GitHub.")
+
+    monkeypatch.setattr(updater, "check", explode)
+    assert updater.auto(install)["installed"] is False
+
+
+def test_auto_is_silent_outside_a_project_folder(monkeypatch):
+    monkeypatch.setattr(updater, "project_root", lambda: None)
+    assert updater.auto()["installed"] is False

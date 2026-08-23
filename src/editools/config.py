@@ -1,15 +1,20 @@
-"""Small persistent settings file, so the API key is entered once and forgotten."""
+"""Settings shared by both checkers, so a key is entered once and forgotten."""
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 
-HOME = Path(os.environ.get("HYPHENCHECK_HOME", Path.home() / ".hyphencheck"))
+HOME = Path(os.environ.get("EDITOOLS_HOME", Path.home() / ".editools"))
 CONFIG_PATH = HOME / "config.json"
 CACHE_PATH = HOME / "mw-cache.json"
 OVERRIDES_PATH = HOME / "overrides.json"
+
+#: Where the Hyphenation Checker kept these before the two tools were merged.
+LEGACY_HOME = Path(os.environ.get("HYPHENCHECK_HOME",
+                                  Path.home() / ".hyphencheck"))
 
 
 def load() -> dict:
@@ -84,3 +89,30 @@ def load_overrides(path: str | Path | None = None) -> dict[str, str]:
         except (OSError, ValueError):
             continue
     return {}
+
+
+def adopt_legacy() -> bool:
+    """Move a pre-merge ``~/.hyphencheck`` across, once.
+
+    The Merriam-Webster key takes twenty minutes to get hold of, most of it
+    spent waiting for an email, and the lookup cache is a book's worth of
+    requests already paid for. Losing either to a rename would be a poor way
+    to find out the tools had been merged, so both are carried over the first
+    time the new home is wanted. The old folder is copied, not moved: an
+    install of the old checker that is still on the machine goes on working.
+    """
+    if HOME.exists() or not LEGACY_HOME.is_dir():
+        return False
+    try:
+        HOME.mkdir(parents=True, exist_ok=True)
+        for name in ("config.json", "mw-cache.json", "overrides.json"):
+            source = LEGACY_HOME / name
+            if source.is_file():
+                shutil.copy2(source, HOME / name)
+        try:
+            (HOME / "config.json").chmod(0o600)
+        except OSError:
+            pass
+        return True
+    except OSError:
+        return False

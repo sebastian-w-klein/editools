@@ -15,9 +15,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from hyphencheck.dictionary import Dictionary  # noqa: E402
+from editools.hyphen.dictionary import Dictionary  # noqa: E402
 
 #: word -> dotted headword, as MW returns it.  A value of None means MW has no
 #: entry and answers with suggestions instead.
@@ -101,7 +101,7 @@ def mw(tmp_path) -> Dictionary:
 
 @pytest.fixture
 def proof_pdf(tmp_path) -> Path:
-    from make_fixture import build
+    from hyphen.make_fixture import build
 
     return build(tmp_path / "sample_proof.pdf")
 
@@ -109,7 +109,7 @@ def proof_pdf(tmp_path) -> Path:
 @pytest.fixture
 def page_turn_pdf(tmp_path) -> Path:
     """A proof with words divided across page turns, under chapter-named heads."""
-    from make_fixture import build_page_turn
+    from hyphen.make_fixture import build_page_turn
 
     return build_page_turn(tmp_path / "page_turn_proof.pdf")
 

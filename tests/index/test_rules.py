@@ -2,8 +2,8 @@
 
 import pytest
 
-from indexcheck import rules
-from indexcheck.parser import parse
+from editools.index import rules
+from editools.index.parser import parse
 
 
 def check(rule, text, italics=None):

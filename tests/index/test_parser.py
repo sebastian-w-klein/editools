@@ -1,6 +1,6 @@
 """Entry structure, per §12, §15 and §16."""
 
-from indexcheck.parser import parse
+from editools.index.parser import parse
 
 
 def test_general_references_then_run_in_subentries():

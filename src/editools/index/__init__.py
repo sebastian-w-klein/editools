@@ -1,3 +1,1 @@
-"""Check a book index against FSG house style."""
-
-__version__ = "0.1.0"
+"""The Index Checker: a book index against FSG house style."""

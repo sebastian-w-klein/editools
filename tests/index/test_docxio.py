@@ -9,8 +9,8 @@ import zipfile
 from docx import Document
 from lxml import etree
 
-from indexcheck import docxio
-from indexcheck.docxio import EditQueue, W, _Ids
+from editools.index import docxio
+from editools.index.docxio import EditQueue, W, _Ids
 
 NS = {"w": W[1:-1]}
 

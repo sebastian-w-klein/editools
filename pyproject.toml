@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "editools"
+version = "2.0.0"
+description = "Editorial Tools: the Index Checker and the Hyphenation Checker, in one place."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    # Index Checker
+    "python-docx>=1.2",
+    "lxml>=4.9",
+    # Hyphenation Checker
+    "pdfplumber>=0.11",
+    "openpyxl>=3.1",
+    "requests>=2.28",
+    "pyphen>=0.14",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "reportlab>=4"]
+
+[project.scripts]
+editools = "editools.cli:main"
+# The names from before the two tools were merged, so that anything written
+# down — a note taped to a monitor, an old README — still works.
+indexcheck = "editools.cli:index_main"
+hyphencheck = "editools.cli:hyphen_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]

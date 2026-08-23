@@ -1,28 +1,12 @@
-"""A small local page for checking an index without touching a terminal.
-
-Everything stays on this machine: the server binds to localhost and the index
-never leaves the computer.
-"""
+"""The Index Checker's page, and what happens when a file lands on it."""
 
 from __future__ import annotations
 
-import http.server
-import json
 import shutil
-import tempfile
-import threading
-import uuid
-import webbrowser
-from email.parser import BytesParser
-from email.policy import default as default_policy
 from pathlib import Path
-from urllib.parse import unquote
 
-from . import audit
-from .rules import COLOURS
-
-RESULTS: dict[str, Path] = {}
-WORKDIR = Path(tempfile.gettempdir()) / "indexcheck-ui"
+from ..index import audit
+from .common import RESULTS, new_job
 
 #: Word's highlight names, as CSS colours, for the legend and the table.
 SWATCH = {"yellow": "#f7e463", "brightGreen": "#8fe08f",
@@ -119,10 +103,21 @@ PAGE = r"""<!doctype html>
   .kind.fix { color:var(--ok,#2f6b4f); }
   tr.check td { opacity:.78; }
   .err { color:var(--accent); }
+  .back { display:inline-block; margin:0 0 18px; font-size:13px;
+          font-family:system-ui,sans-serif; color:var(--muted);
+          text-decoration:none; }
+  .back:hover { color:var(--accent); }
+  #update { display:none; margin:0 0 20px; padding:12px 16px;
+            border:1px solid var(--line); border-left:3px solid var(--accent);
+            border-radius:6px; background:var(--panel); font-size:14px;
+            font-family:system-ui,sans-serif; }
+  #update.on { display:block; }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <a class="back" href="/">← All editorial tools</a>
+  <div id="update"></div>
   <h1>Index Checker</h1>
   <p class="sub">Drop in an index. What house style settles is fixed for you;
      what needs judgement is highlighted and explained in a Word comment.
@@ -153,6 +148,22 @@ PAGE = r"""<!doctype html>
 </div>
 
 <script>
+// Checked at most once a day, and silent about any problem: not being able to
+// reach GitHub is no reason to interrupt someone checking an index.
+fetch('/update-status')
+  .then(r => r.json())
+  .then(s => {
+    if (!s.available && !s.installed) return;
+    const box = document.getElementById('update');
+    box.innerHTML = s.installed
+      ? '<b>An update was installed.</b> Close this window and open the checker '
+        + 'again to start using it.'
+      : '<b>A new version is available.</b> It will install by itself next time '
+        + 'you open the checker.';
+    box.classList.add('on');
+  })
+  .catch(() => {});
+
 const drop = document.getElementById('drop');
 const file = document.getElementById('file');
 const status = document.getElementById('status');
@@ -187,7 +198,7 @@ async function send(f) {
   if (last) body.append('last_page', last);
   let data;
   try {
-    data = await (await fetch('/check', {method:'POST', body})).json();
+    data = await (await fetch('/index/check', {method:'POST', body})).json();
   } catch (err) {
     status.classList.remove('on');
     out.innerHTML = '<p class="err">' + esc(err) + '</p>';
@@ -229,7 +240,7 @@ function render(d) {
   } else {
     html += '<p>Nothing to flag.</p>';
   }
-  html += '<a class="dl" href="/download/' + d.id + '">Download the marked-up file</a>';
+  html += '<a class="dl" href="/index/download/' + d.id + '">Download the marked-up file</a>';
   out.innerHTML = html;
 }
 </script>
@@ -238,142 +249,47 @@ function render(d) {
 """
 
 
-def _parse_upload(headers, body: bytes):
-    """Pull the uploaded file, and any form fields, out of a multipart body."""
-    content_type = headers.get("Content-Type", "")
-    if "multipart/form-data" not in content_type:
-        return None
-    raw = (b"Content-Type: " + content_type.encode()
-           + b"\r\nMIME-Version: 1.0\r\n\r\n" + body)
-    message = BytesParser(policy=default_policy).parsebytes(raw)
-    upload, fields = None, {}
-    for part in message.iter_parts():
-        filename = part.get_filename()
-        if filename:
-            upload = (unquote(filename), part.get_payload(decode=True))
-        else:
-            name = part.get_param("name", header="content-disposition")
-            if name:
-                fields[name] = part.get_payload(decode=True).decode(
-                    "utf-8", "replace").strip()
-    return (upload[0], upload[1], fields) if upload else None
 
 
-class Handler(http.server.BaseHTTPRequestHandler):
-    server_version = "indexcheck"
+DOCX = ("application/vnd.openxmlformats-officedocument"
+        ".wordprocessingml.document")
 
-    def log_message(self, fmt, *args):        # quieter than the default
-        pass
-
-    def _send(self, code, body, content_type, extra=None):
-        self.send_response(code)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        for key, value in (extra or {}).items():
-            self.send_header(key, value)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _json(self, code, payload):
-        self._send(code, json.dumps(payload).encode(), "application/json")
-
-    def do_GET(self):
-        if self.path == "/":
-            self._send(200, PAGE.encode(), "text/html; charset=utf-8")
-        elif self.path.startswith("/download/"):
-            key = unquote(self.path.rsplit("/", 1)[-1])
-            path = RESULTS.get(key)
-            if not path or not path.exists():
-                self._json(404, {"error": "That result has expired; check again."})
-                return
-            self._send(
-                200, path.read_bytes(),
-                "application/vnd.openxmlformats-officedocument"
-                ".wordprocessingml.document",
-                {"Content-Disposition": f'attachment; filename="{path.name}"'},
-            )
-        else:
-            self._json(404, {"error": "Not found"})
-
-    def _from_this_machine(self) -> bool:
-        """Reject posts from a page on some other site.
-
-        The server listens on localhost, but any page the user happens to have
-        open can still post to it.
-        """
-        origin = self.headers.get("Origin")
-        if origin is None:
-            return True
-        return origin in (f"http://{self.headers.get('Host', '')}",
-                          "http://localhost", "http://127.0.0.1")
-
-    def do_POST(self):
-        if not self._from_this_machine():
-            self._json(403, {"error": "Refused a request from another site."})
-            return
-        if self.path != "/check":
-            self._json(404, {"error": "Not found"})
-            return
-
-        length = int(self.headers.get("Content-Length", 0))
-        upload = _parse_upload(self.headers, self.rfile.read(length))
-        if not upload:
-            self._json(400, {"error": "No file was received."})
-            return
-
-        filename, data, fields = upload
-        try:
-            last_page = int(fields.get("last_page") or 0) or None
-        except ValueError:
-            last_page = None
-        WORKDIR.mkdir(parents=True, exist_ok=True)
-        job = uuid.uuid4().hex
-        folder = WORKDIR / job
-        folder.mkdir()
-        safe = Path(filename).name or "index.docx"
-        source = folder / safe
-        source.write_bytes(data)
-
-        try:
-            result = audit.run(
-                source, out_path=folder / (Path(safe).stem + "_checked.docx"),
-                last_page=last_page)
-        except Exception as exc:      # surfaced in the page, not the console
-            shutil.rmtree(folder, ignore_errors=True)
-            self._json(200, {"error": f"{type(exc).__name__}: {exc}"})
-            return
-
-        RESULTS[job] = result.path
-        self._json(200, {
-            "id": job,
-            "entries": result.entries,
-            "fixes": result.fixes,
-            "flags": result.flags,
-            "counts": result.counts(),
-            "labels": LABELS,
-            "swatch": SWATCH,
-            "findings": [
-                {"entry": entry, "message": finding.message,
-                 "colour": finding.colour, "severity": finding.severity,
-                 "fixed": bool(finding.action)}
-                for entry, finding in result.described()
-            ],
-        })
+EXPIRED = "That result has expired; check the index again."
 
 
-def serve(host: str = "127.0.0.1", port: int = 8766,
-          open_browser: bool = True) -> int:
-    server = http.server.ThreadingHTTPServer((host, port), Handler)
-    url = f"http://{host}:{port}/"
-    print(f"Index Checker is running at {url}")
-    print("Leave this window open while you use it. Press Ctrl-C to stop.")
-    if open_browser:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+def check(filename: str, data: bytes, fields: dict) -> dict:
+    """Check one uploaded index and describe the result for the page."""
     try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nStopped.")
-    finally:
-        server.server_close()
-        shutil.rmtree(WORKDIR, ignore_errors=True)
-    return 0
+        last_page = int(fields.get("last_page") or 0) or None
+    except ValueError:
+        last_page = None
+
+    job, folder = new_job()
+    safe = Path(filename).name or "index.docx"
+    source = folder / safe
+    source.write_bytes(data)
+
+    try:
+        result = audit.run(
+            source, out_path=folder / (Path(safe).stem + "_checked.docx"),
+            last_page=last_page)
+    except Exception as exc:      # surfaced in the page, not the console
+        shutil.rmtree(folder, ignore_errors=True)
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+    RESULTS[job] = result.path
+    return {
+        "id": job,
+        "entries": result.entries,
+        "fixes": result.fixes,
+        "flags": result.flags,
+        "counts": result.counts(),
+        "labels": LABELS,
+        "swatch": SWATCH,
+        "findings": [
+            {"entry": entry, "message": finding.message,
+             "colour": finding.colour, "severity": finding.severity,
+             "fixed": bool(finding.action)}
+            for entry, finding in result.described()
+        ],
+    }

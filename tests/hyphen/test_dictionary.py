@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from hyphencheck.dictionary import Dictionary, collect_dotted_forms, positions_from_dotted
-from conftest import build_cache
+from editools.hyphen.dictionary import Dictionary, collect_dotted_forms, positions_from_dotted
+from hyphen.conftest import build_cache
 
 
 def test_division_points_come_from_the_asterisks():

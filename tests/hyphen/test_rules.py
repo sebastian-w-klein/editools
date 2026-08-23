@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from hyphencheck import rules
-from hyphencheck.model import Break, Verdict
+from editools.hyphen import rules
+from editools.hyphen.model import Break, Verdict
 
 
 def make_break(left: str, right: str, *, before: str = "", after: str = "",

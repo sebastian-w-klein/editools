@@ -11,11 +11,15 @@ file-by-file against 77 KB for the whole compressed archive, at the cost of an
 extra request per file and code to follow renames. Replacing everything is
 both smaller and simpler.
 
-Two things in the project folder must survive an update: the virtual
-environment, which lives in `.venv` and would take a reinstall to rebuild, and
-the proofreader's own `overrides.json`. Neither is in the archive, so the rule
-is simple — copy files in, and only ever delete something this updater itself
-installed last time.
+Nothing in the project folder that belongs to the user may be lost: the
+proofreader's own `overrides.json`, and a virtual environment if one was made
+beside the project rather than in the home folder. None of it is in the
+archive, so the rule is simple — copy files in, and only ever delete something
+this updater itself installed last time.
+
+This runs by itself when a checker starts, so in normal use nobody ever asks
+for an update or downloads anything: the version on the desk is the version in
+the repository, a day later at worst.
 """
 
 from __future__ import annotations
@@ -34,15 +38,16 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-REPO = "sebastian-w-klein/hyphenchecker"
+REPO = "sebastian-w-klein/editools"
 BRANCH = "main"
 API = "https://api.github.com"
 CODELOAD = "https://codeload.github.com"
 
-MARKER_NAME = ".hyphencheck-update.json"
+MARKER_NAME = ".editools-update.json"
 
 #: Never remove these, whatever a manifest says.
-PROTECTED = {".venv", "venv", "overrides.json", MARKER_NAME, ".git"}
+PROTECTED = {".venv", "venv", "overrides.json", "installed-from.txt",
+             MARKER_NAME, ".git"}
 
 #: How long a "no update available" answer stays good, so that several people
 #: behind one office address do not exhaust the hourly limit for anonymous
@@ -120,7 +125,7 @@ def project_root() -> Path | None:
     """
     here = Path(__file__).resolve()
     for candidate in here.parents[:4]:
-        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "hyphencheck").is_dir():
+        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "editools").is_dir():
             return candidate
     return None
 
@@ -214,14 +219,14 @@ def apply_archive(root: Path, data: bytes, previous: list[str]) -> tuple[list[st
         raise UpdateError("The download was not a readable archive.") from exc
 
     members = _safe_members(archive)
-    if not any(relative == "src/hyphencheck/__init__.py" for _, relative in members):
+    if not any(relative == "src/editools/__init__.py" for _, relative in members):
         raise UpdateError(
-            "The download does not look like the hyphenation checker; nothing was changed."
+            "The download does not look like the editorial tools; nothing was changed."
         )
 
     pyproject_before = (root / "pyproject.toml").read_bytes() if (root / "pyproject.toml").is_file() else b""
 
-    staged = Path(tempfile.mkdtemp(prefix="hyphencheck-update-"))
+    staged = Path(tempfile.mkdtemp(prefix="editools-update-"))
     installed: list[str] = []
     try:
         for name, relative in members:
@@ -355,3 +360,37 @@ def run(root: Path | None = None, force: bool = False, fetch=_get) -> Result:
         f"Close the checker window and start it again to use the new version.",
         sha=newest, changed=len(installed), reinstalled=reinstalled,
     )
+
+
+def auto(root: Path | None = None, fetch=_get) -> dict:
+    """Update on the quiet, as part of starting up.
+
+    Called by the launchers before the checker itself starts, so that the
+    version somebody uses is the current one without them ever being asked.
+    It answers from the once-a-day cached check, so the usual cost is nothing
+    at all, and it never fails loudly: a laptop on a train, an office that
+    blocks GitHub, a folder that cannot be written to — none of those are a
+    reason to stop somebody checking a proof.
+
+    Returns what the page should say about it, if anything.
+    """
+    state = {"available": False, "installed": False, "latest": ""}
+    try:
+        root = root or project_root()
+        if root is None:
+            return state
+
+        available, newest, _ = check(root, fetch=fetch)
+        state["latest"] = newest[:7]
+        if not available:
+            return state
+
+        result = run(root, fetch=fetch)
+        state["available"] = True
+        state["installed"] = bool(result.updated)
+        state["message"] = result.message
+    except UpdateError:
+        pass          # said plainly by `editools update`, not by a launcher
+    except Exception:
+        pass          # nothing here is worth failing a launch over
+    return state

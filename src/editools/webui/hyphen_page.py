@@ -1,31 +1,14 @@
-"""A small local window for running an audit without touching a terminal.
-
-Everything stays on this machine: the server binds to localhost, the proof
-never leaves the computer, and the only outbound requests are the
-Merriam-Webster word lookups the audit itself makes.
-"""
+"""The Hyphenation Checker's page, and what happens when a proof lands on it."""
 
 from __future__ import annotations
 
-import http.server
-import json
-import os
 import shutil
-import tempfile
-import threading
-import uuid
-import webbrowser
-from email.parser import BytesParser
-from email.policy import default as default_policy
 from pathlib import Path
-from urllib.parse import unquote
 
-from . import audit, config, report
-from . import update as updater
-from .dictionary import Dictionary
-
-RESULTS: dict[str, Path] = {}
-WORKDIR = Path(tempfile.gettempdir()) / "hyphencheck-ui"
+from .. import config
+from ..hyphen import audit, report
+from ..hyphen.dictionary import Dictionary
+from .common import RESULTS, new_job
 
 PAGE = r"""<!doctype html>
 <html lang="en">
@@ -36,23 +19,27 @@ PAGE = r"""<!doctype html>
 <style>
   :root {
     --bg: #faf9f7; --panel: #ffffff; --ink: #1c1b19; --muted: #6b6862;
-    --line: #e3e0da; --accent: #7a2e2e; --ok: #2f6b4f; --warn: #8a6d1f;
+    --line: #e3e0da; --accent: #2a4f7c; --ok: #2f6b4f; --warn: #8a6d1f;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#1a1917; --panel:#232120; --ink:#f0ede8; --muted:#a29d95;
-            --line:#3a3734; --accent:#d98a8a; --ok:#7fc4a2; --warn:#d9bd6b; }
+            --line:#3a3734; --accent:#8fb6e0; --ok:#7fc4a2; --warn:#d9bd6b; }
   }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink);
          font: 16px/1.55 Georgia, "Iowan Old Style", serif; }
   .wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+  .back { display:inline-block; margin:0 0 18px; font-size:13px;
+          font-family:system-ui,sans-serif; color:var(--muted);
+          text-decoration:none; }
+  .back:hover { color:var(--accent); }
   h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
   .sub { color: var(--muted); margin: 0 0 32px; }
   .panel { background: var(--panel); border: 1px solid var(--line);
            border-radius: 10px; padding: 28px; }
   #drop { border: 2px dashed var(--line); border-radius: 10px; padding: 44px 20px;
           text-align: center; cursor: pointer; transition: .15s; }
-  #drop.over, #drop:hover { border-color: var(--accent); background: rgba(122,46,46,.04); }
+  #drop.over, #drop:hover { border-color: var(--accent); background: rgba(42,79,124,.05); }
   #drop strong { display:block; font-size: 18px; margin-bottom: 6px; }
   #drop span { color: var(--muted); font-size: 14px; }
   .key { margin-top: 20px; font-size: 14px; color: var(--muted); }
@@ -100,6 +87,7 @@ PAGE = r"""<!doctype html>
 </head>
 <body>
 <div class="wrap">
+  <a class="back" href="/">← All editorial tools</a>
   <h1>Hyphenation Checker</h1>
   <p class="sub">Drop in a proof. Every end-of-line hyphen is checked against all nine
      rules, and you get a spreadsheet with page numbers.</p>
@@ -152,14 +140,14 @@ function showKey(state) {
     keyForm.classList.add('on');
   }
 }
-fetch('/status').then(r => r.json()).then(showKey);
+fetch('/hyphen/status').then(r => r.json()).then(showKey);
 
 keySave.onclick = () => {
   const value = keyInput.value.trim();
   if (!value) return;
   keySave.disabled = true;
   keyLine.innerHTML = 'Checking that key with Merriam-Webster…';
-  fetch('/key', {
+  fetch('/hyphen/key', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key: value }),
@@ -171,7 +159,7 @@ keySave.onclick = () => {
         keyInput.value = '';
         keyLine.innerHTML = '<span class="ok">' + esc(res.message) + '</span>';
         keyForm.classList.remove('on');
-        setTimeout(() => fetch('/status').then(r => r.json()).then(showKey), 2500);
+        setTimeout(() => fetch('/hyphen/status').then(r => r.json()).then(showKey), 2500);
       } else {
         keyLine.innerHTML = '<span class="err">' + esc(res.message) + '</span>';
         keyForm.classList.add('on');
@@ -191,8 +179,11 @@ fetch('/update-status')
   .then(s => {
     if (!s.available) return;
     const box = document.getElementById('update');
-    box.innerHTML = '<b>A new version is available.</b> To install it, close this '
-      + 'window and double-click <b>' + esc(s.how) + '</b> in the hyphenchecker folder.';
+    box.innerHTML = s.installed
+      ? '<b>An update was installed.</b> Close this window and open the checker '
+        + 'again to start using it.'
+      : '<b>A new version is available.</b> It will install by itself next time '
+        + 'you open the checker.';
     box.classList.add('on');
   })
   .catch(() => {});
@@ -218,7 +209,7 @@ function send(f) {
   msg.textContent = 'Reading ' + f.name + '… a full book takes a minute or two the first time.';
   const body = new FormData();
   body.append('pdf', f, f.name);
-  fetch('/audit', { method: 'POST', body })
+  fetch('/hyphen/audit', { method: 'POST', body })
     .then(r => r.json())
     .then(render)
     .catch(e => {
@@ -241,7 +232,7 @@ function render(data) {
       '<div><b>' + data.counts.checked + '</b>breaks checked</div>' +
       '<div><b>' + data.counts.pages + '</b>pages</div>' +
     '</div>' +
-    '<a class="dl" href="/download/' + encodeURIComponent(data.id) + '">Download the spreadsheet</a>' +
+    '<a class="dl" href="/hyphen/download/' + encodeURIComponent(data.id) + '">Download the spreadsheet</a>' +
     (rows ? '<table><thead><tr><th>Page</th><th>Break</th><th>Rules</th>' +
             '<th>Why</th></tr></thead><tbody>' + rows + '</tbody></table>'
           : '<p style="margin-top:18px;color:var(--ok)">Nothing flagged.</p>') +
@@ -257,181 +248,66 @@ function render(data) {
 """
 
 
-def _parse_upload(headers, body: bytes) -> tuple[str, bytes] | None:
-    """Pull the single uploaded file out of a multipart/form-data body."""
-    content_type = headers.get("Content-Type", "")
-    if "multipart/form-data" not in content_type:
-        return None
-    raw = b"Content-Type: " + content_type.encode() + b"\r\nMIME-Version: 1.0\r\n\r\n" + body
-    message = BytesParser(policy=default_policy).parsebytes(raw)
-    for part in message.iter_parts():
-        filename = part.get_filename()
-        if filename:
-            return unquote(filename), part.get_payload(decode=True)
-    return None
 
 
-class Handler(http.server.BaseHTTPRequestHandler):
-    server_version = "hyphencheck"
+XLSX = ("application/vnd.openxmlformats-officedocument"
+        ".spreadsheetml.sheet")
 
-    def log_message(self, fmt, *args):  # quieter than the default
-        pass
-
-    def _send(self, code: int, body: bytes, content_type: str, extra: dict | None = None):
-        self.send_response(code)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        for key, value in (extra or {}).items():
-            self.send_header(key, value)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _json(self, code: int, payload: dict):
-        self._send(code, json.dumps(payload).encode(), "application/json")
-
-    def _update_status(self) -> dict:
-        """Whether a newer version exists, from the once-a-day cached answer."""
-        try:
-            root = updater.project_root()
-            if root is None:
-                return {"available": False}
-            available, latest, _ = updater.check(root)
-            return {
-                "available": bool(available),
-                "latest": latest[:7],
-                "how": "update.bat" if os.name == "nt" else "update.command",
-            }
-        except Exception:
-            return {"available": False}
-
-    def _handle_key(self):
-        """Take a Merriam-Webster key typed into the page, check it, save it."""
-        length = int(self.headers.get("Content-Length", 0))
-        try:
-            payload = json.loads(self.rfile.read(length) or b"{}")
-            key = str(payload.get("key", ""))
-        except ValueError:
-            self._json(200, {"ok": False, "message": "That did not look like a key."})
-            return
-        try:
-            ok, message = config.verify_and_save(key)
-        except Exception as exc:
-            ok, message = False, f"Could not reach Merriam-Webster: {exc}"
-        self._json(200, {"ok": ok, "message": message})
-
-    def do_GET(self):
-        if self.path == "/":
-            self._send(200, PAGE.encode(), "text/html; charset=utf-8")
-        elif self.path == "/status":
-            self._json(200, {"has_key": bool(config.api_key())})
-        elif self.path == "/update-status":
-            self._json(200, self._update_status())
-        elif self.path.startswith("/download/"):
-            key = unquote(self.path.rsplit("/", 1)[-1])
-            path = RESULTS.get(key)
-            if not path or not path.exists():
-                self._json(404, {"error": "That result has expired; run the audit again."})
-                return
-            self._send(
-                200, path.read_bytes(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                {"Content-Disposition": f'attachment; filename="{path.name}"'},
-            )
-        else:
-            self._json(404, {"error": "Not found"})
-
-    def _from_this_machine(self) -> bool:
-        """Reject posts from a page on some other site.
-
-        The server listens on localhost, but any web page the user happens to
-        have open can still post to localhost. Nothing here is dangerous, but
-        a stray request should not be able to overwrite a saved key.
-        """
-        origin = self.headers.get("Origin")
-        if origin is None:
-            return True  # not a cross-site request
-        return origin in (f"http://{self.headers.get('Host', '')}",
-                          "http://localhost", "http://127.0.0.1")
-
-    def do_POST(self):
-        if not self._from_this_machine():
-            self._json(403, {"error": "Refused a request from another site."})
-            return
-        if self.path == "/key":
-            self._handle_key()
-            return
-        if self.path != "/audit":
-            self._json(404, {"error": "Not found"})
-            return
-        length = int(self.headers.get("Content-Length", 0))
-        upload = _parse_upload(self.headers, self.rfile.read(length))
-        if not upload:
-            self._json(400, {"error": "No file was received."})
-            return
-
-        filename, data = upload
-        WORKDIR.mkdir(parents=True, exist_ok=True)
-        job = uuid.uuid4().hex
-        folder = WORKDIR / job
-        folder.mkdir()
-        safe = Path(filename).name or "proof.pdf"
-        pdf_path = folder / safe
-        pdf_path.write_bytes(data)
-
-        try:
-            key = config.api_key()
-            dictionary = Dictionary(
-                api_key=key, cache_path=config.CACHE_PATH,
-                overrides=config.load_overrides(), offline=not key,
-            )
-            result = audit.run(str(pdf_path), dictionary)
-            xlsx = report.write(
-                result, folder / (Path(safe).stem + "_hyphenation_audit.xlsx")
-            )
-        except Exception as exc:  # surfaced in the page rather than the console
-            shutil.rmtree(folder, ignore_errors=True)
-            self._json(200, {"error": f"{type(exc).__name__}: {exc}"})
-            return
-
-        RESULTS[job] = xlsx
-        counts = result.counts()
-        self._json(200, {
-            "id": job,
-            "counts": {
-                "violations": counts["Violations"],
-                "needs_check": counts["Needs check"],
-                "advisories": counts["Advisories"],
-                "checked": counts["Real word divisions checked"],
-                "pages": counts["Pages"],
-            },
-            "flagged": [
-                {
-                    "page": brk.book_page or f"pdf {brk.pdf_page}",
-                    "display": brk.display,
-                    "rules": brk.flagged_rules,
-                    "reason": brk.reason,
-                }
-                for brk in sorted(
-                    result.flagged,
-                    key=lambda b: (int(b.book_page) if b.book_page.isdigit() else 10**6,
-                                   b.line_index),
-                )
-            ],
-        })
+EXPIRED = "That result has expired; run the audit again."
 
 
-def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> int:
-    server = http.server.ThreadingHTTPServer((host, port), Handler)
-    url = f"http://{host}:{port}/"
-    print(f"Hyphenation Checker is running at {url}")
-    print("Leave this window open while you use it. Press Ctrl-C to stop.")
-    if open_browser:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+def save_key(key: str) -> dict:
+    """Take a Merriam-Webster key typed into the page, check it, save it."""
     try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nStopped.")
-    finally:
-        server.server_close()
-        shutil.rmtree(WORKDIR, ignore_errors=True)
-    return 0
+        ok, message = config.verify_and_save(key)
+    except Exception as exc:
+        ok, message = False, f"Could not reach Merriam-Webster: {exc}"
+    return {"ok": ok, "message": message}
+
+
+def run_audit(filename: str, data: bytes) -> dict:
+    """Audit one uploaded proof and describe the result for the page."""
+    job, folder = new_job()
+    safe = Path(filename).name or "proof.pdf"
+    pdf_path = folder / safe
+    pdf_path.write_bytes(data)
+
+    try:
+        key = config.api_key()
+        dictionary = Dictionary(
+            api_key=key, cache_path=config.CACHE_PATH,
+            overrides=config.load_overrides(), offline=not key,
+        )
+        result = audit.run(str(pdf_path), dictionary)
+        xlsx = report.write(
+            result, folder / (Path(safe).stem + "_hyphenation_audit.xlsx")
+        )
+    except Exception as exc:  # surfaced in the page rather than the console
+        shutil.rmtree(folder, ignore_errors=True)
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+    RESULTS[job] = xlsx
+    counts = result.counts()
+    return {
+        "id": job,
+        "counts": {
+            "violations": counts["Violations"],
+            "needs_check": counts["Needs check"],
+            "advisories": counts["Advisories"],
+            "checked": counts["Real word divisions checked"],
+            "pages": counts["Pages"],
+        },
+        "flagged": [
+            {
+                "page": brk.book_page or f"pdf {brk.pdf_page}",
+                "display": brk.display,
+                "rules": brk.flagged_rules,
+                "reason": brk.reason,
+            }
+            for brk in sorted(
+                result.flagged,
+                key=lambda b: (int(b.book_page) if b.book_page.isdigit() else 10**6,
+                               b.line_index),
+            )
+        ],
+    }

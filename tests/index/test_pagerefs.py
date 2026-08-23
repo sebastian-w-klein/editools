@@ -2,7 +2,7 @@
 
 import pytest
 
-from indexcheck.pagerefs import elide, parse, unelide
+from editools.index.pagerefs import elide, parse, unelide
 
 
 @pytest.mark.parametrize("start,end,expected", [

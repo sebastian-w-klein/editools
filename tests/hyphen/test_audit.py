@@ -6,10 +6,10 @@ import json
 
 from openpyxl import load_workbook
 
-from hyphencheck import audit, report
-from hyphencheck.dictionary import Dictionary
-from hyphencheck.model import Verdict
-from conftest import build_cache
+from editools.hyphen import audit, report
+from editools.hyphen.dictionary import Dictionary
+from editools.hyphen.model import Verdict
+from hyphen.conftest import build_cache
 
 
 def run_audit(proof_pdf, tmp_path):

@@ -2,8 +2,8 @@
 
 import pytest
 
-from indexcheck.parser import parse
-from indexcheck.rules import check_syntax
+from editools.index.parser import parse
+from editools.index.rules import check_syntax
 
 
 def syntax(text):

@@ -4,8 +4,8 @@ import zipfile
 
 from docx import Document
 
-from indexcheck import audit
-from indexcheck.docxio import W
+from editools.index import audit
+from editools.index.docxio import W
 
 
 def test_a_clean_index_is_left_alone(make_docx):
@@ -65,7 +65,7 @@ def test_the_illustration_note_is_not_counted_as_an_entry(make_docx):
 
 def test_fixes_are_applied_as_tracked_edits(make_docx):
     """A messy entry comes back corrected, and rejecting restores it."""
-    from tests.test_docxio import resolve
+    from index.test_docxio import resolve
 
     messy = 'Adams, John,  15-22, 82n, 308–310; See also "Smith"'
     path = make_docx(messy)
@@ -80,7 +80,7 @@ def test_fixes_are_applied_as_tracked_edits(make_docx):
 
 def test_overlapping_fixes_do_not_corrupt_the_text(make_docx):
     """An elision fix and a dash fix can land on the same range."""
-    from tests.test_docxio import resolve
+    from index.test_docxio import resolve
 
     messy = "Adams, 308-310, 100-9"
     path = make_docx(messy)

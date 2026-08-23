@@ -2,8 +2,8 @@
 
 import pytest
 
-from indexcheck.parser import crossref_targets, parse
-from indexcheck.rules import check_crossref_targets
+from editools.index.parser import crossref_targets, parse
+from editools.index.rules import check_crossref_targets
 
 
 def targets(text):

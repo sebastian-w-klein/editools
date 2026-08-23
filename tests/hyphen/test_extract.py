@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from hyphencheck import extract
-from hyphencheck.textutil import split_leading_word, split_trailing_word
+from editools.hyphen import extract
+from editools.hyphen.textutil import split_leading_word, split_trailing_word
 
 
 def test_words_are_not_run_together(proof_pdf):
@@ -124,8 +124,8 @@ def test_an_unreadable_page_turn_is_flagged_rather_than_invented(mw):
     A join that produced "considONE" would otherwise be checked as a word and
     reported as a confident violation of a rule, against a word nobody set.
     """
-    from hyphencheck import rules
-    from hyphencheck.model import Break, Verdict
+    from editools.hyphen import rules
+    from editools.hyphen.model import Break, Verdict
 
     brk = Break(
         pdf_page=41, book_page="40", line_index=30, left="consid", right="ONE",
