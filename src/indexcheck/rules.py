@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from . import pagerefs
 from .pagerefs import EN_DASH, elide
 from .parser import Entry, crossref_targets
-from .sortkey import candidate_keys, in_order
+from .sortkey import (alternative_readings, in_order, name_candidates,
+                      sort_keys)
 
 #: Highlight colour per rule, so the marked-up file is readable at a glance.
 COLOURS = {
@@ -82,15 +84,36 @@ def _order_severity(previous_keys, current_keys) -> str | None:
     key) puts them the wrong way round, and the severity says whether any other
     reading would have saved it.
     """
-    if current_keys[0] >= previous_keys[0]:
+    if in_order(previous_keys.house, current_keys.house):
         return None
-    return "check" if in_order(previous_keys, current_keys) else "error"
+    return ("check" if in_order(previous_keys.every, current_keys.every)
+            else "error")
 
 
-def _alternative(severity: str) -> str:
-    return ("" if severity == "error" else
-            " — though it is right if filed under a spelled-out numeral "
-            "or a leading article")
+def _alternative(severity: str, *terms: str) -> str:
+    """Name the readings that would have put this pair the right way round."""
+    if severity == "error":
+        return ""
+    names = []
+    for term in terms:
+        for name in alternative_readings(term):
+            if name not in names:
+                names.append(name)
+    if not names:
+        return " — though another reading of it would be right"
+    if len(names) > 1:
+        names[-1] = "or " + names[-1]
+    joined = (", " if len(names) > 2 else " ").join(names)
+    return f" — though it is right if filed under {joined}"
+
+
+class _Filed(NamedTuple):
+    """One main entry, as the ordering scan sees it."""
+
+    keys: object                     # sortkey.Keys
+    term: str
+    position: int                    # paragraph index
+    stop: int                        # where the term ends, for the highlight
 
 
 def check_entry_order(entries: list[tuple[int, Entry]]) -> list[tuple[int, Finding]]:
@@ -98,24 +121,57 @@ def check_entry_order(entries: list[tuple[int, Entry]]) -> list[tuple[int, Findi
 
     Reported against the entry that breaks the run, so a single misfiled entry
     produces one flag rather than two.
+
+    Which of the pair broke it is not always the later one. An entry filed too
+    early sits above everything that legitimately follows, and blaming the
+    followers turns one misfiling into a wall of flags — '"(I Wanna) Testify"'
+    landed among the "I Got" entries and drew fourteen. So when the entry
+    after next also fits where the intruder sits, the intruder is the one
+    reported and the run carries on from the follower.
+
+    Two entries that reduce to the *same* key are reported too. Sorting cannot
+    say which should come first, and the guidelines' remedy is to tell them
+    apart by hand — 'London (England)' against 'London, Amy' — so the pair
+    needs an eye rather than a rule.
     """
     found = []
-    previous = None
+    settled: _Filed | None = None    # the last entry the run agrees with
+    previous: _Filed | None = None   # the one after it, admitted on trust
     for position, entry in entries:
         if entry.is_note or not entry.term:
             continue
-        keys = candidate_keys(entry.term)
-        if previous is not None:
-            severity = _order_severity(previous[0], keys)
-            if severity:
-                found.append((position, Finding(
-                    "entry-order", 0, max(1, entry.term_stop),
-                    f"{entry.term!r} should come before {previous[1]!r}"
-                    + _alternative(severity),
-                    severity=severity,
-                )))
-                continue
-        previous = (keys, entry.term)
+        current = _Filed(sort_keys(entry.term), entry.term, position,
+                         entry.term_stop)
+        if previous is None:
+            previous = current
+            continue
+
+        severity = _order_severity(previous.keys, current.keys)
+        if severity:
+            # If this entry sits happily where the previous one was admitted,
+            # the previous one is the intruder and this one resumes the run.
+            if settled and not _order_severity(settled.keys, current.keys):
+                blamed, before = previous, current
+                settled = previous = current
+            else:
+                blamed, before = current, previous
+            found.append((blamed.position, Finding(
+                "entry-order", 0, max(1, blamed.stop),
+                f"{blamed.term!r} should come before {before.term!r}"
+                + _alternative(severity, blamed.term, before.term),
+                severity=severity,
+            )))
+            continue
+
+        if current.keys.house == previous.keys.house:
+            found.append((position, Finding(
+                "entry-order", 0, max(1, current.stop),
+                f"{current.term!r} and {previous.term!r} alphabetise the same, "
+                "so nothing decides which comes first — one of them needs "
+                "a qualifier",
+                severity="check",
+            )))
+        settled, previous = previous, current
     return found
 
 
@@ -129,15 +185,16 @@ def check_subentry_order(entry: Entry) -> list[Finding]:
     """
     found = []
     subs = entry.subentries
-    keys = [candidate_keys(s.term, subentry=True) for s in subs]
-    counted = [candidate_keys(s.term, subentry=True, drop_prepositions=False)
+    keys = [sort_keys(s.term, subentry=True) for s in subs]
+    counted = [sort_keys(s.term, subentry=True, drop_prepositions=False)
                for s in subs]
     for i in range(1, len(subs)):
-        if keys[i][0] >= keys[i - 1][0]:
+        if in_order(keys[i - 1].house, keys[i].house):
             continue
-        if in_order(keys[i - 1], keys[i]):
-            severity, aside = "check", _alternative("check")
-        elif counted[i][0] >= counted[i - 1][0]:
+        if in_order(keys[i - 1].every, keys[i].every):
+            severity, aside = "check", _alternative(
+                "check", subs[i].term, subs[i - 1].term)
+        elif in_order(counted[i - 1].house, counted[i].house):
             severity, aside = "check", (
                 " — though it is right if the initial preposition counts")
         else:
@@ -552,7 +609,7 @@ def check_crossref_targets(
                 # A cross-reference may name an entry in short:
                 # "see Western Electric" for "Western Electric Manufacturing
                 # Company". Register every word-boundary prefix so it matches.
-                for key, _ in candidate_keys(" ".join(words[:length])):
+                for key in name_candidates(" ".join(words[:length])):
                     if len(key) >= 4 or length == len(words):
                         known.add(key)
 
@@ -565,7 +622,7 @@ def check_crossref_targets(
                 continue
             # "see under radio" points at the entry "radio"
             name = re.sub(r"^under\s+", "", target.entry_name, flags=re.IGNORECASE)
-            if any(key in known for key, _ in candidate_keys(name)):
+            if any(key in known for key in name_candidates(name)):
                 continue
             found.append((position, Finding(
                 "dangling-crossref", target.start, target.stop,
@@ -612,7 +669,12 @@ def check_syntax(entry: Entry) -> list[Finding]:
         if segment_refs:
             first = segment_refs[0]
             if term_stop < first.start:
-                separator(term_stop, first.start, ", ",
+                # House style tucks the separating comma inside a closing
+                # quote — 'Allen, Bill "Hoss," 15' — so the term already
+                # carries it and only the space is left in the gap.
+                quoted = entry.text[:term_stop].rstrip().endswith(
+                    (",”", ',"', ",’", ",'"))
+                separator(term_stop, first.start, " " if quoted else ", ",
                           "the gap before page numbers")
         for previous, current in zip(segment_refs, segment_refs[1:]):
             if previous.stop < current.start:
