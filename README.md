@@ -111,6 +111,25 @@ program itself. Closing it closes the checker.
 > unidentified developer", right-click `run-checker.command`, choose **Open**,
 > then **Open** again. You only do this once.
 
+The checker keeps its Python setup in your own user folder rather than beside
+these files, so it works whether you keep this folder on your computer or on a
+shared network drive.
+
+### If it stops after "Setting up for the first time"
+
+You may see something like:
+
+```
+Actual environment location may have moved due to redirects, links or junctions.
+  Requested location: "I:\...\.venv\Scripts\python.exe"
+  Actual location:    "\\NYFILE32\FSGCommon\...\.venv\Scripts\python.exe"
+```
+
+That is an older version of this tool trying to set itself up on a network
+drive, which Windows will not allow. Download the current version and it will
+work from the network drive. If you would rather not download it again, copying
+the folder to your Desktop also fixes it.
+
 ## Step 4 — Check an index
 
 Drag the Word file onto the page. If you fill in the last page of the book
