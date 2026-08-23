@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import audit, config, report
+from . import audit, config, report, update as updater
 from .dictionary import Dictionary
 from .model import Verdict
 
@@ -92,6 +92,37 @@ def cmd_setup(args) -> int:
     return 0
 
 
+def cmd_update(args) -> int:
+    root = updater.project_root()
+    if root is None:
+        print(
+            "This copy cannot update itself, because it was not installed from a "
+            "project folder.\nDownload the latest version from GitHub instead.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        if args.check:
+            available, newest, marker = updater.check(root, force=True)
+            if available:
+                current = marker.sha[:7] if marker.sha else "unknown"
+                print(f"An update is available ({current} → {newest[:7]}).")
+                print("Run `hyphencheck update` to install it.")
+            else:
+                print("Already up to date.")
+            return 0
+
+        print("Checking for updates…", file=sys.stderr)
+        result = updater.run(root, force=args.force)
+    except updater.UpdateError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print(result.message)
+    return 0
+
+
 def cmd_ui(args) -> int:
     from . import webui
 
@@ -127,6 +158,13 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser = subparsers.add_parser("setup", help="save and verify your MW API key")
     setup_parser.add_argument("--key", help="the key, if you would rather not be prompted")
     setup_parser.set_defaults(func=cmd_setup)
+
+    update_parser = subparsers.add_parser("update", help="install the latest version")
+    update_parser.add_argument("--check", action="store_true",
+                               help="only say whether an update is available")
+    update_parser.add_argument("--force", action="store_true",
+                               help="reinstall even if already up to date")
+    update_parser.set_defaults(func=cmd_update)
 
     ui_parser = subparsers.add_parser("ui", help="open the drag-and-drop window")
     ui_parser.add_argument("--host", default="127.0.0.1")

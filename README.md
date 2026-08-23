@@ -328,6 +328,38 @@ each name only has to be settled once.
 
 ---
 
+# Getting updates
+
+When the tool is improved, you do not download anything by hand. Double-click
+**`update.command`** (Mac) or **`update.bat`** (Windows) in the `hyphenchecker`
+folder. It checks whether there is anything new, and says so if there is not:
+
+```
+Checking for updates…
+Already up to date.
+```
+
+If there is a new version, it installs it and tells you:
+
+```
+Updated to 0b20080 (27 files).
+Close the checker window and start it again to use the new version.
+```
+
+The checker window also tells you when an update is waiting, so you do not have
+to remember to look. It checks at most once a day, and never interrupts what
+you are doing if it cannot reach the internet.
+
+**Your settings are not affected.** Your Merriam-Webster key, your remembered
+word lookups and your `overrides.json` all survive an update untouched — the
+updater only ever replaces files that came with the tool in the first place.
+
+From the command line, the same thing is `hyphencheck update`, and
+`hyphencheck update --check` reports whether one is available without
+installing it.
+
+---
+
 # If something goes wrong
 
 **"command not found: python3" / "'python' is not recognized"**
@@ -377,6 +409,19 @@ That is deliberate — the dictionary has no entry, so the tool will not guess.
 Record your decision once in the overrides file (above) and it is treated as
 settled from then on.
 
+**"GitHub would not answer this request"**
+Usually too many update checks have come from your office network in the last
+hour — GitHub allows a limited number from any one address, and waiting an hour
+fixes it. On a work network it can also mean GitHub is blocked outright, in
+which case updates have to be installed by hand. Either way, carry on: an
+update is never urgent, and the checker works exactly as before until you
+install one.
+
+**An update finished but said the components could not be installed**
+The files were updated but a new dependency could not be fetched. The message
+tells you the one command to run in the project folder to finish the job. Until
+then the tool may not start, so it is worth doing straight away.
+
 **The browser page won't load / "can't connect"**
 The black window that starts the tool has been closed. Double-click
 `run-checker.command` or `run-checker.bat` again and leave it open.
@@ -396,6 +441,8 @@ hyphencheck word cemetery photographer      # where does MW divide this word?
 hyphencheck audit BOOK.pdf --offline        # no dictionary; Rules 2-5, 8 still apply
 hyphencheck ui                              # the drag-and-drop window
 hyphencheck setup                           # save and verify your MW key
+hyphencheck update                          # install the latest version
+hyphencheck update --check                  # is there a newer version?
 ```
 
 ## Why this exists
@@ -454,6 +501,7 @@ PDF ──▶ extract ──▶ break detection ──▶ dictionary ──▶ n
 | `audit.py` | Runs a whole proof: extract, prefetch, evaluate |
 | `report.py` | The spreadsheet |
 | `webui.py` | The local drag-and-drop window |
+| `update.py` | Checking for and installing a newer version in place |
 
 [`docs/RULES.md`](docs/RULES.md) maps each rule in the ruleset to its
 implementation, including the judgement calls.

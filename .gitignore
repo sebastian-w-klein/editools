@@ -9,3 +9,4 @@ venv/
 *.xlsx
 overrides.json
 mw-cache.json
+.hyphencheck-update.json
