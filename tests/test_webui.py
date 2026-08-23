@@ -125,3 +125,27 @@ def test_a_proof_can_be_audited_through_the_window(server, proof_pdf, monkeypatc
 
     status, spreadsheet = get(server + "/download/" + payload["id"])
     assert status == 200 and spreadsheet[:2] == b"PK"  # a real .xlsx
+
+
+# -- the update notice -------------------------------------------------------
+
+def test_the_window_reports_an_available_update(server, monkeypatch):
+    from hyphencheck import update as updater
+
+    monkeypatch.setattr(updater, "check", lambda root, **kw: (True, "b" * 40, None))
+    payload = json.loads(get(server + "/update-status")[1])
+    assert payload["available"] is True
+    assert payload["latest"] == "b" * 7
+    assert payload["how"] in ("update.command", "update.bat")
+
+
+def test_an_unreachable_github_never_interrupts_the_window(server, monkeypatch):
+    """Checking a proof matters; checking for updates does not."""
+    from hyphencheck import update as updater
+
+    def explode(root, **kw):
+        raise updater.UpdateError("Could not reach GitHub.")
+
+    monkeypatch.setattr(updater, "check", explode)
+    status, body = get(server + "/update-status")
+    assert status == 200 and json.loads(body) == {"available": False}

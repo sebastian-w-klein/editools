@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import http.server
 import json
+import os
 import shutil
 import tempfile
 import threading
@@ -20,6 +21,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from . import audit, config, report
+from . import update as updater
 from .dictionary import Dictionary
 
 RESULTS: dict[str, Path] = {}
@@ -88,6 +90,10 @@ PAGE = r"""<!doctype html>
                     font-family: system-ui, sans-serif; }
   .keyform button:disabled { opacity: .5; cursor: default; }
   .linkish { color: var(--accent); cursor: pointer; text-decoration: underline; }
+  .update { margin-top: 14px; padding: 10px 14px; border-radius: 7px; display: none;
+            background: rgba(122,46,46,.08); border: 1px solid var(--line);
+            font-size: 14px; font-family: system-ui, sans-serif; }
+  .update.on { display: block; }
   code { background: rgba(128,128,128,.14); padding: 1px 5px; border-radius: 4px;
          font-size: 13px; }
 </style>
@@ -105,6 +111,7 @@ PAGE = r"""<!doctype html>
       <input type="file" id="file" accept="application/pdf,.pdf" hidden>
     </div>
     <div class="key" id="key"></div>
+    <div class="update" id="update"></div>
     <div class="keyform" id="keyform">
       <input type="password" id="keyinput" placeholder="Paste your Merriam-Webster key here"
              autocomplete="off" spellcheck="false">
@@ -176,6 +183,19 @@ keySave.onclick = () => {
     });
 };
 keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') keySave.click(); });
+
+// Checked at most once a day, and silent about any problem: not being able to
+// reach GitHub is no reason to interrupt someone checking a proof.
+fetch('/update-status')
+  .then(r => r.json())
+  .then(s => {
+    if (!s.available) return;
+    const box = document.getElementById('update');
+    box.innerHTML = '<b>A new version is available.</b> To install it, close this '
+      + 'window and double-click <b>' + esc(s.how) + '</b> in the hyphenchecker folder.';
+    box.classList.add('on');
+  })
+  .catch(() => {});
 
 drop.onclick = () => file.click();
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
@@ -269,6 +289,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _json(self, code: int, payload: dict):
         self._send(code, json.dumps(payload).encode(), "application/json")
 
+    def _update_status(self) -> dict:
+        """Whether a newer version exists, from the once-a-day cached answer."""
+        try:
+            root = updater.project_root()
+            if root is None:
+                return {"available": False}
+            available, latest, _ = updater.check(root)
+            return {
+                "available": bool(available),
+                "latest": latest[:7],
+                "how": "update.bat" if os.name == "nt" else "update.command",
+            }
+        except Exception:
+            return {"available": False}
+
     def _handle_key(self):
         """Take a Merriam-Webster key typed into the page, check it, save it."""
         length = int(self.headers.get("Content-Length", 0))
@@ -289,6 +324,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send(200, PAGE.encode(), "text/html; charset=utf-8")
         elif self.path == "/status":
             self._json(200, {"has_key": bool(config.api_key())})
+        elif self.path == "/update-status":
+            self._json(200, self._update_status())
         elif self.path.startswith("/download/"):
             key = unquote(self.path.rsplit("/", 1)[-1])
             path = RESULTS.get(key)
