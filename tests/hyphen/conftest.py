@@ -37,6 +37,13 @@ MW_ENTRIES: dict[str, str | None] = {
     "povertystricken": None,
     "wordsworth": None,
     "wordswor": None,
+    "word": "word",               # the element in front of Wordsworth's "-worth"
+    "words": "words",             # …and its plural, which MW dots nowhere
+    "butter": "but*ter",
+    "butterfield": None,
+    "sharon": None,
+    "farnsworth": None,
+    "farns": None,
     "marvolene": None,
     "dépaysement": None,
     "father": "fa*ther",

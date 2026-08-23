@@ -28,6 +28,7 @@ from .model import (
 )
 from .textutil import (
     ends_in_vowel,
+    has_vowel,
     is_initial,
     is_roman_numeral,
     leading_em_dash,
@@ -37,7 +38,9 @@ from .textutil import (
 MIN_BEFORE = 2
 MIN_AFTER = 3
 
-#: Rule 6.2 — independent English morphemes that end a name and must not be split.
+#: Rule 6.2 — independent English morphemes that end a name.  The boundary in
+#: front of one is a seam: the break may fall on it, but not inside the morpheme
+#: and not one letter short of it.
 NAME_MORPHEMES = (
     "worth", "ville", "son", "berg", "burg", "bury", "borough", "brook",
     "field", "ford", "hall", "ham", "haven", "hill", "house", "land",
@@ -293,28 +296,128 @@ def rule_6(brk: Break, ctx: Context, info: Analysis) -> Finding:
     if syl.source in ("mw", "override"):
         return Finding(6, Verdict.OK, f"listed in MW ({syl.display}) — Rule 1 governs the break")
 
-    base = strip_possessive(brk.word).lower()
+    word = strip_possessive(brk.word)
+    base = word.lower()
+    index = brk.break_index
     for morpheme in NAME_MORPHEMES:
         if base.endswith(morpheme) and len(base) > len(morpheme) + 1:
             start = len(base) - len(morpheme)
-            if start < brk.break_index < len(base):
+            if index > start:
                 return Finding(
                     6, Verdict.VIOLATION,
-                    f"splits the morpheme “-{morpheme}”; break at “{brk.word[:start]}-"
-                    f"{brk.word[start:]}” instead",
+                    f"splits the morpheme “-{morpheme}”; "
+                    + _instead(word, start, ctx),
                 )
-            return Finding(6, Verdict.OK, f"no MW entry; break does not split “-{morpheme}”")
+            if index == start:
+                return Finding(6, Verdict.OK, f"breaks at the seam before “-{morpheme}”")
+            return _inside_first_element(brk, ctx, word, start, morpheme)
 
-    if ends_in_vowel(brk.left):
+    return _vowel_test(brk, ctx, word)
+
+
+def _instead(word: str, start: int, ctx: Context) -> str:
+    """How to name the seam, once it is known whether Rule 2 allows it."""
+    if (
+        letter_count(word[:start]) < ctx.min_before
+        or letter_count(word[start:]) < ctx.min_after
+    ):
+        return (
+            f"the seam at “{word[:start]}-{word[start:]}” fails Rule 2, so there is "
+            f"nowhere here the name may be broken"
+        )
+    return f"break at “{word[:start]}-{word[start:]}” instead"
+
+
+def _inside_first_element(
+    brk: Break, ctx: Context, word: str, start: int, morpheme: str
+) -> Finding:
+    """Rule 6.2 where the break falls *before* the morpheme, not inside it.
+
+    ``Word-/sworth`` leaves ``-worth`` whole and is still wrong: the linking s
+    belongs to ``Words``, and carrying it over makes a second element nobody
+    set.  So the morpheme boundary is a seam rather than merely a no-split
+    zone, and a break short of it has to answer to the element in front —
+    which, unlike the name as a whole, is often an ordinary English word MW
+    knows (``Butter-`` in Butterfield, ``Water-`` in Waterford).
+    """
+    index = brk.break_index
+    element = word[:start]
+    carried = word[index:start]      # what the break drags onto the morpheme
+
+    listed = ctx.dictionary.lookup(element)
+    if listed.authoritative:
+        if index in listed.positions:
+            return Finding(
+                6, Verdict.OK,
+                f"no MW entry for “{word}”, but the break falls on a division point of "
+                f"“{element}” ({listed.display}), the element before “-{morpheme}”",
+            )
+        if listed.positions:
+            reason = (
+                f"the break falls inside “{element}”, the element before “-{morpheme}”, "
+                f"and MW shows {listed.display} — no division point after “{brk.left}”"
+            )
+        else:
+            reason = (
+                f"“{element}”, the element before “-{morpheme}”, is undivided in MW, "
+                f"so the seam is the only place “{word}” breaks"
+            )
+        return Finding(6, Verdict.VIOLATION, reason + "; " + _instead(word, start, ctx))
+
+    if not has_vowel(carried):
         return Finding(
-            6, Verdict.OK,
-            "no MW entry and no recognizable morpheme; the break follows a vowel (Rule 6.3)",
+            6, Verdict.VIOLATION,
+            f"carries “{carried}” over onto “-{morpheme}”, and “{carried}” has no vowel "
+            f"to make a syllable of its own — it belongs to “{element}”; "
+            + _instead(word, start, ctx),
+        )
+    return Finding(6, Verdict.OK, f"no MW entry; break does not split “-{morpheme}”")
+
+
+def _vowel_test(brk: Break, ctx: Context, word: str) -> Finding:
+    """Rule 6.3 and 6.4, with TeX consulted before a guess is called a pass.
+
+    A break after a vowel is the ruleset's last acceptance, and on its own it
+    is only a guess: ``Sha-/ron`` follows a vowel exactly as ``Ma-/rina``
+    does, and one of the two is wrong.  TeX's en-US patterns cannot settle it
+    — they omit legitimate points as readily as they withhold bad ones — but
+    where they do offer division points and the break is not among them, that
+    is enough to send the row to a human rather than pass it.
+    """
+    if not ends_in_vowel(brk.left):
+        return Finding(
+            6, Verdict.NEEDS_CHECK,
+            "no MW entry, no recognizable morpheme, and the break does not follow a vowel — "
+            "flag rather than guess (Rule 6.4)",
+        )
+
+    tex = ctx.dictionary.tex_positions(word)
+    if tex is not None and brk.break_index not in tex:
+        withheld = (
+            f"TeX en-US patterns divide it {_dotted(word, tex)}, not after “{brk.left}”"
+            if tex else
+            f"TeX en-US patterns find nowhere at all to divide “{word}”"
+        )
+        return Finding(
+            6, Verdict.NEEDS_CHECK,
+            f"the break follows a vowel, but that alone does not make it right — "
+            f"“{word}” has no MW entry, and {withheld}; decide this one by hand "
+            f"(Rule 6.4)",
         )
     return Finding(
-        6, Verdict.NEEDS_CHECK,
-        "no MW entry, no recognizable morpheme, and the break does not follow a vowel — "
-        "flag rather than guess (Rule 6.4)",
+        6, Verdict.OK,
+        "no MW entry and no recognizable morpheme; the break follows a vowel (Rule 6.3)",
     )
+
+
+def _dotted(word: str, positions: set[int]) -> str:
+    """*word* with its division points shown the way MW's own display shows them."""
+    out = []
+    for i, ch in enumerate(word):
+        if i and i in positions:
+            out.append("·")
+        out.append(ch)
+    return "".join(out)
 
 
 def rule_7(brk: Break, ctx: Context, info: Analysis) -> Finding:
