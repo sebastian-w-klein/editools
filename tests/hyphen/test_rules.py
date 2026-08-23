@@ -183,6 +183,43 @@ def test_rule_6_accepts_a_break_at_the_morpheme_boundary(mw):
     assert verdict(check(make_break("Words", "worth"), mw), 6) is Verdict.OK
 
 
+def test_rule_6_catches_a_break_one_letter_short_of_the_morpheme(mw):
+    """Word-/sworth: “-worth” is whole and the break is still wrong.
+
+    The linking s belongs to “Words”; carried over it makes “sworth”, which is
+    no word at all.  This one was a miss — Rule 6 passed it, and the correct
+    Words-/worth read exactly the same in the report.
+    """
+    brk = check(make_break("Word", "sworth"), mw)
+    assert verdict(brk, 6) is Verdict.VIOLATION
+    assert "Words-worth" in brk.finding_for(6).message
+
+
+def test_rule_6_catches_a_stranded_consonant_with_no_mw_element(mw):
+    """The same catch without MW: “Farns” is in no dictionary, “s” is still a consonant."""
+    brk = check(make_break("Farn", "sworth"), mw)
+    assert verdict(brk, 6) is Verdict.VIOLATION
+    assert "Farns-worth" in brk.finding_for(6).message
+
+
+def test_rule_6_measures_a_break_before_the_morpheme_against_the_element(mw):
+    """MW has no Butterfield, but it has butter — but·ter, so But-/terfield stands."""
+    assert verdict(check(make_break("But", "terfield"), mw), 6) is Verdict.OK
+    brk = check(make_break("Butt", "erfield"), mw)
+    assert verdict(brk, 6) is Verdict.VIOLATION
+    assert "but·ter" in brk.finding_for(6).message
+
+
+def test_rule_6_leaves_a_break_alone_when_the_element_is_unknown(mw):
+    """MW knows neither Islington nor Isling, and “ing” carries a vowel of its own.
+
+    Nothing here says the break is wrong, so Rule 6 does not invent a reason —
+    Rule 1 has already asked for the name to be checked by hand.
+    """
+    assert verdict(check(make_break("Isl", "ington"), mw), 6) is Verdict.OK
+    assert verdict(check(make_break("Islin", "gton"), mw), 6) is Verdict.VIOLATION
+
+
 def test_rule_6_flags_rather_than_guesses(mw):
     """No entry, no morpheme, no vowel — Rule 6.4 says flag it."""
     assert verdict(check(make_break("Marvol", "ene"), mw), 6) is Verdict.NEEDS_CHECK
@@ -190,6 +227,18 @@ def test_rule_6_flags_rather_than_guesses(mw):
 
 def test_rule_6_allows_a_break_after_a_vowel(mw):
     assert verdict(check(make_break("Marvo", "lene"), mw), 6) is Verdict.OK
+
+
+def test_rule_6_will_not_pass_a_vowel_break_tex_cannot_corroborate(mw):
+    """Sha-/ron follows a vowel exactly as Ma-/rina does, and it is wrong.
+
+    The vowel test on its own is a guess, and this was the second miss: Rule 6
+    marked it OK.  TeX's en-US patterns find nowhere at all to divide Sharon,
+    which is not proof of anything but is enough to send it to a human.
+    """
+    brk = check(make_break("Sha", "ron"), mw)
+    assert verdict(brk, 6) is Verdict.NEEDS_CHECK
+    assert "Sharon" in brk.finding_for(6).message
 
 
 # -- Rule 7 ------------------------------------------------------------------

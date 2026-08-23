@@ -128,6 +128,19 @@ class Dictionary:
             self._local.session = session
         return session
 
+    def tex_positions(self, word: str) -> set[int] | None:
+        """TeX's en-US division points for *word*, or None if TeX cannot say.
+
+        Rule 1 may not see this once Merriam-Webster has been asked and had no
+        entry — guessing at an invented name's syllables is the thing the rule
+        forbids.  Rule 6 is the other side of that: it deals only with names MW
+        never carries, and its own step 3 would otherwise accept any break that
+        follows a vowel on no evidence whatever.  TeX cannot license a break
+        there either, but it can withhold agreement, and the worst it produces
+        is "check this one by hand".
+        """
+        return self._tex_positions(word)
+
     def save(self) -> None:
         if self._dirty:
             _save_cache(self.cache_path, self._cache)

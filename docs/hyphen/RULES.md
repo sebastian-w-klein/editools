@@ -85,9 +85,41 @@ Applied in the ruleset's own order, stopping at the first that answers:
 
 1. In MW → Rule 1 governs.
 2. Ends in a recognizable morpheme (`-worth`, `-ville`, `-son`, `-berg`, and
-   about thirty more) → the break must not fall inside it.
-3. Otherwise, a break after a vowel is accepted.
+   about thirty more) → the boundary in front of it is a **seam**, not merely a
+   no-split zone.
+3. Otherwise, a break after a vowel is accepted — but only where TeX's en-US
+   patterns do not contradict it.
 4. Otherwise flagged, per the rule's own instruction not to guess.
+
+**Step 2, both sides of the seam.** Leaving the morpheme whole is not enough.
+`Word-/sworth` does not split `-worth` and is still wrong: the linking s belongs
+to `Words`, and carried over it makes a second element nobody set. So a break
+short of the seam has to answer to the element in front of it, which — unlike
+the name as a whole — is often an ordinary word MW carries:
+
+- **MW knows the element** → the break must be one of *its* division points.
+  `but·ter` licenses `But-/terfield` and rejects `Butt-/erfield`; `words` is
+  dotted nowhere, so `Words-/worth` is the only place Wordsworth divides.
+- **MW does not know it** → the letters the break would carry over must be able
+  to form a syllable, which means containing a vowel. `Farn-/sworth` and
+  `Islin-/gton` strand a bare consonant on the morpheme and are violations;
+  `Isl-/ington` carries `ing` and is left alone.
+
+This is what caught `Word-/sworth`, where the old one-sided test passed the
+break and the correct `Words-/worth` read identically in the report.
+
+**Step 3, a guess is not a pass.** `Sha-/ron` follows a vowel exactly as
+`Ma-/rina` does, and one of the two is wrong; the last letter of the fragment
+cannot tell them apart. So where TeX has division points for the name and the
+break is not among them — or, as with `Sharon`, where TeX finds nowhere to
+divide it at all — the row goes to a human as `NEEDS CHECK` rather than passing.
+
+TeX never *licenses* a break here and never produces a violation: it omits
+legitimate points as readily as it withholds bad ones, so absence of agreement
+is worth a look and nothing more. This is the one place TeX is consulted after
+MW has been asked and had no entry (`Dictionary.tex_positions`); Rule 1 still
+may not see it, because a Rule 1 verdict would then rest on a guess, which is
+exactly what that rule forbids.
 
 The initials, numerals and `Jr./Sr.` provisions are breaks *between* words, not
 hyphen breaks, so they are collected by a separate scan

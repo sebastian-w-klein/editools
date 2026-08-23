@@ -130,6 +130,11 @@ def ends_in_vowel(text: str) -> bool:
     return bool(letters) and letters[-1] in VOWELS
 
 
+def has_vowel(text: str) -> bool:
+    """True if *text* holds a vowel — that is, whether it could form a syllable."""
+    return any(ch in VOWELS for ch in text)
+
+
 ROMAN = re.compile(r"^(?:M{0,4}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))$")
 
 
