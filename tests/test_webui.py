@@ -66,7 +66,20 @@ def test_the_hyphen_page_offers_somewhere_to_paste_a_key(server, get):
 
 def test_status_reports_whether_a_key_is_saved(server, get, monkeypatch):
     monkeypatch.setattr(config, "api_key", lambda *a, **k: "")
-    assert get(server + "/hyphen/status")[1] == b'{"has_key": false}'
+    assert json.loads(get(server + "/hyphen/status")[1])["has_key"] is False
+
+
+def test_status_reports_an_overrides_file_that_cannot_be_read(server, get, monkeypatch):
+    """The page says so before a proof is dropped, not after the audit is wrong."""
+    monkeypatch.setattr(config, "read_overrides",
+                        lambda *a, **k: config.Overrides(problem="curly quotes"))
+    assert json.loads(get(server + "/hyphen/status")[1])["overrides_problem"] == "curly quotes"
+
+
+def test_a_readable_overrides_file_says_nothing(server, get, monkeypatch):
+    monkeypatch.setattr(config, "read_overrides",
+                        lambda *a, **k: config.Overrides(words={"a": "b"}))
+    assert json.loads(get(server + "/hyphen/status")[1])["overrides_problem"] == ""
 
 
 def test_a_working_key_is_accepted(server, monkeypatch):

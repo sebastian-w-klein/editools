@@ -57,10 +57,15 @@ def _dictionary(args):
     from .hyphen.dictionary import Dictionary
 
     key = config.api_key(getattr(args, "key", None))
+    overrides = config.read_overrides(getattr(args, "overrides", None))
+    if overrides.problem:
+        # Said out loud: a proof checked without the overrides is checked
+        # against the wrong answers, and looks no different for it.
+        print(overrides.problem, file=sys.stderr)
     return Dictionary(
         api_key=key,
         cache_path=getattr(args, "cache", None) or config.CACHE_PATH,
-        overrides=config.load_overrides(getattr(args, "overrides", None)),
+        overrides=overrides.words,
         offline=getattr(args, "offline", False) or not key,
     )
 

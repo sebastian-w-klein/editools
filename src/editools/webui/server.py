@@ -41,7 +41,10 @@ class Handler(BaseHandler):
         elif path in ("/hyphen", "/hyphen/"):
             self.send_html(hyphen_page.PAGE)
         elif path == "/hyphen/status":
-            self.send_json(200, {"has_key": bool(config.api_key())})
+            self.send_json(200, {
+                "has_key": bool(config.api_key()),
+                "overrides_problem": config.read_overrides().problem,
+            })
         elif path.startswith("/hyphen/download/"):
             self.send_result(path.rsplit("/", 1)[-1], hyphen_page.XLSX,
                              hyphen_page.EXPIRED)

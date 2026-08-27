@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
+from dataclasses import dataclass, field
 from pathlib import Path
 
 HOME = Path(os.environ.get("EDITOOLS_HOME", Path.home() / ".editools"))
@@ -72,23 +74,92 @@ def verify_and_save(key: str) -> tuple[bool, str]:
     return True, f"Key saved and working (cemetery \u2192 {check.display})."
 
 
-def load_overrides(path: str | Path | None = None) -> dict[str, str]:
-    """Words the proofreader has ruled on herself.
+#: Quotation marks a word processor substitutes for the straight ones, which
+#: is the likeliest reason a hand-edited overrides file stops loading.
+CURLY_QUOTES = "“”‘’"
+
+#: A comma after the last entry — the other likely slip.
+TRAILING_COMMA = re.compile(r",\s*[}\]]")
+
+
+@dataclass
+class Overrides:
+    """The proofreader's own decisions, and anything that stopped them loading."""
+
+    words: dict[str, str] = field(default_factory=dict)
+    problem: str = ""
+
+
+def _explain(path: Path, text: str, error: Exception) -> str:
+    """Why a file that is plainly there could not be read.
+
+    Written for the person who typed it, not the person who wrote the parser:
+    it names the file, the line, and — where the text says so — the actual
+    slip, because "Expecting ',' delimiter" tells a proofreader nothing.
+    """
+    where = f", line {error.lineno}" if isinstance(error, json.JSONDecodeError) else ""
+    if any(ch in text for ch in CURLY_QUOTES):
+        cause = ("The quotation marks in it are curly (“ ”) where this file needs "
+                 "straight ones. In TextEdit, choose Format → Make Plain Text, "
+                 "then retype them.")
+    elif TRAILING_COMMA.search(text):
+        cause = ("There is a comma after the last entry. The line before the "
+                 "closing brace is the only one that takes no comma.")
+    else:
+        cause = ("A curly quotation mark or a comma after the last entry is the "
+                 "usual cause.")
+    return (f"Your overrides file could not be read, so none of the words in it "
+            f"were used.\n  {path}{where}\n  {cause}")
+
+
+def read_overrides(path: str | Path | None = None) -> Overrides:
+    """Words the proofreader has ruled on herself, and how the reading went.
 
     Maps a word to its dotted form (``"Mar*vo*lene"`` or ``"Mar·vo·lene"``) or
     to ``"nobreak"`` when the word may not be divided at all.  Invented names
     and house-style decisions live here, and they outrank the dictionary.
+
+    No file at all is not a problem — most books need no overrides. A file that
+    *is* there and cannot be read is worth saying out loud: it is hand-edited,
+    both of the usual slips leave text that still looks right, and passing back
+    an empty set would drop every name the proofreader has ever settled without
+    a word about it.
     """
     candidates = [Path(path)] if path else [OVERRIDES_PATH, Path("overrides.json")]
     for candidate in candidates:
         try:
-            with open(candidate, encoding="utf-8") as handle:
-                data = json.load(handle)
-            if isinstance(data, dict):
-                return {str(k): str(v) for k, v in data.items()}
-        except (OSError, ValueError):
-            continue
-    return {}
+            text = candidate.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            continue                      # nothing here; try the next place
+        except UnicodeDecodeError:
+            return Overrides(problem=(
+                f"Your overrides file is not plain text, so none of the words in "
+                f"it were used.\n  {candidate}\n  Save it again as plain text "
+                f"— in TextEdit, Format → Make Plain Text."
+            ))
+        except OSError as exc:
+            return Overrides(problem=(
+                f"Your overrides file could not be opened, so none of the words "
+                f"in it were used.\n  {candidate}\n  {exc.strerror or exc}"
+            ))
+
+        try:
+            data = json.loads(text)
+        except ValueError as exc:
+            return Overrides(problem=_explain(candidate, text, exc))
+        if not isinstance(data, dict):
+            return Overrides(problem=(
+                f"Your overrides file does not hold a list of words, so none of "
+                f"it was used.\n  {candidate}\n  It should look like the example: "
+                f'{{"Marvolene": "Mar·vo·lene"}}'
+            ))
+        return Overrides(words={str(k): str(v) for k, v in data.items()})
+    return Overrides()
+
+
+def load_overrides(path: str | Path | None = None) -> dict[str, str]:
+    """Just the words. Use :func:`read_overrides` to hear about a broken file."""
+    return read_overrides(path).words
 
 
 def adopt_legacy() -> bool:

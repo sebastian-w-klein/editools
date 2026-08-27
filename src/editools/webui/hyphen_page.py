@@ -65,6 +65,10 @@ PAGE = r"""<!doctype html>
   a.dl { display:inline-block; margin-top: 20px; background: var(--accent); color:#fff;
          text-decoration:none; padding: 11px 20px; border-radius: 7px;
          font-family: system-ui, sans-serif; font-size: 15px; }
+  .overrides { display:none; margin-top:16px; padding:12px 16px; border-radius:8px;
+    border:1px solid var(--warn); color:var(--ink); font-size:14px;
+    font-family:system-ui,sans-serif; white-space:pre-line; line-height:1.5; }
+  .overrides.on { display:block; }
   .err { color: var(--accent); }
   .ok { color: var(--ok); }
   .keyform { margin-top: 12px; display: none; gap: 8px; }
@@ -99,6 +103,7 @@ PAGE = r"""<!doctype html>
       <input type="file" id="file" accept="application/pdf,.pdf" hidden>
     </div>
     <div class="key" id="key"></div>
+    <div class="overrides" id="overrides"></div>
     <div class="update" id="update"></div>
     <div class="keyform" id="keyform">
       <input type="password" id="keyinput" placeholder="Paste your Merriam-Webster key here"
@@ -127,6 +132,15 @@ const keyForm = document.getElementById('keyform');
 const keyInput = document.getElementById('keyinput');
 const keySave = document.getElementById('keysave');
 
+const overridesBox = document.getElementById('overrides');
+
+function showOverrides(problem) {
+  // Shown whether or not the audit itself succeeded: a proof checked without
+  // the overrides is checked against the wrong answers and looks no different.
+  overridesBox.textContent = problem || '';
+  overridesBox.classList.toggle('on', !!problem);
+}
+
 function showKey(state) {
   if (state.has_key) {
     keyLine.innerHTML = 'Merriam-Webster key: <b>saved</b>. Rule 1 is checked against the '
@@ -140,7 +154,10 @@ function showKey(state) {
     keyForm.classList.add('on');
   }
 }
-fetch('/hyphen/status').then(r => r.json()).then(showKey);
+fetch('/hyphen/status').then(r => r.json()).then(state => {
+  showKey(state);
+  showOverrides(state.overrides_problem);
+});
 
 keySave.onclick = () => {
   const value = keyInput.value.trim();
@@ -220,6 +237,7 @@ function send(f) {
 
 function render(data) {
   status.classList.remove('on');
+  showOverrides(data.overrides_problem);
   if (data.error) { out.innerHTML = '<p class="err">' + esc(data.error) + '</p>'; return; }
   const rows = data.flagged.map(r =>
     '<tr><td>' + esc(r.page) + '</td><td class="brk">' + esc(r.display) + '</td>' +
@@ -274,9 +292,10 @@ def run_audit(filename: str, data: bytes) -> dict:
 
     try:
         key = config.api_key()
+        overrides = config.read_overrides()
         dictionary = Dictionary(
             api_key=key, cache_path=config.CACHE_PATH,
-            overrides=config.load_overrides(), offline=not key,
+            overrides=overrides.words, offline=not key,
         )
         result = audit.run(str(pdf_path), dictionary)
         xlsx = report.write(
@@ -290,6 +309,7 @@ def run_audit(filename: str, data: bytes) -> dict:
     counts = result.counts()
     return {
         "id": job,
+        "overrides_problem": overrides.problem,
         "counts": {
             "violations": counts["Violations"],
             "needs_check": counts["Needs check"],

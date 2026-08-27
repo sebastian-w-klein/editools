@@ -287,8 +287,10 @@ the file is read by machine and it is strict about its own punctuation:
   them. The last line before the closing `}` is the only one with no comma
   after it.
 
-If the file is not in that shape the tool carries on without it, so a proof that
-suddenly stops honouring your recorded names is worth checking here first.
+If either slip creeps in, the Hyphenation Checker page says so the moment you
+open it — naming the file, the line, and what to put right — and the words in
+it are not used until it is fixed. It will not quietly check a proof against a
+file it could not read.
 
 ---
 
