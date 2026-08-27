@@ -1,7 +1,7 @@
 # How each rule is implemented
 
 A map from the ruleset document to the code, including the judgement calls.
-All of it lives in `src/hyphencheck/rules.py` unless noted.
+All of it lives in `src/editools/hyphen/rules.py` unless noted.
 
 Every rule runs against every break. A rule that does not apply returns `n/a`
 with its reason, rather than being skipped — so the `All Instances` tab shows

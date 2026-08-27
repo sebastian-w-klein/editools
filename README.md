@@ -277,6 +277,19 @@ Use `·` to mark where a word may divide, or `nobreak` for a word that should
 never be divided. Decisions recorded here carry over to every later book, so
 each name only has to be settled once.
 
+Open it in Notepad on Windows, or TextEdit on a Mac. Two things matter, because
+the file is read by machine and it is strict about its own punctuation:
+
+* **On a Mac, put TextEdit into plain text first** — **Format → Make Plain
+  Text** — or it will quietly turn the straight `"` marks into curly ones
+  (“ ”) as you type, and the file will no longer be readable.
+* **Keep every quotation mark, colon and comma** exactly where the example puts
+  them. The last line before the closing `}` is the only one with no comma
+  after it.
+
+If the file is not in that shape the tool carries on without it, so a proof that
+suddenly stops honouring your recorded names is worth checking here first.
+
 ---
 
 # Updates
@@ -299,27 +312,41 @@ It works like this:
 word lookups and your `overrides.json` all survive an update untouched — the
 updater only ever replaces files that came with the tools in the first place.
 
-If you would rather check by hand, `editools update --check` says whether one
-is waiting and `editools update` installs it. Doing that also skips the
-once-a-day look, which is the only reason a brand-new version can take a day to
-arrive on its own.
+## If you need an update today
 
-Opening the tools by double-click keeps Python tucked away in its own folder, so
-plain `editools` is not a command your Terminal or PowerShell knows — it answers
-*"the term 'editools' is not recognized"*. Say which Python to use and it works
-from any folder:
+**You should not have to do this.** A new version arrives on its own the next
+time you open a checker, and nothing stops working while you wait. This is only
+for when somebody has told you a fix is ready and you would rather not wait a
+day for it.
 
-* **Windows**, in PowerShell:
+**On Windows:** press Start, type `PowerShell`, press Enter. Copy the line
+below, paste it into that window — right-click pastes — and press Enter.
 
-  ```powershell
-  & "$env:LOCALAPPDATA\EditorialTools\venv\Scripts\python.exe" -m editools update
-  ```
+```powershell
+& "$env:LOCALAPPDATA\EditorialTools\venv\Scripts\python.exe" -m editools update
+```
 
-* **macOS**, in Terminal:
+**On a Mac:** press `⌘ + Space`, type `Terminal`, press Enter. Copy the line
+below, paste it into that window, and press Enter.
 
-  ```bash
-  "$HOME/Library/Application Support/EditorialTools/venv/bin/python" -m editools update
-  ```
+```bash
+"$HOME/Library/Application Support/EditorialTools/venv/bin/python" -m editools update
+```
+
+It answers either *"Already up to date."* or *"Updated to"* a short code and
+the number of files changed. If it updated anything, close the checker and open
+it again to start using the new version. The PowerShell or Terminal window has
+done its job either way and can be closed.
+
+If instead it says it cannot find that file, the tools have not been set up on
+this computer yet — double-click **Editorial Tools** once, which does the
+setting up, and then try again.
+
+That line is long because it names the exact Python the tools installed for
+themselves, which lives in your own user folder rather than beside these files.
+The short version, `editools update`, works only in a window that already knows
+where that is. Typed anywhere else it answers *"the term 'editools' is not
+recognized"* — which looks alarming and means nothing is wrong.
 
 ---
 
@@ -332,12 +359,13 @@ make sure that box is ticked. Then close your Terminal or Command Prompt window
 and open a new one — it only notices new software when it starts.
 
 **"The term 'editools' is not recognized" / "command not found: editools"**
-Nothing is broken, and nothing needs reinstalling. Opening the tools by
-double-click keeps their Python in a folder of its own, which your Terminal or
-PowerShell knows nothing about, so the short `editools …` commands are not
-spelled out for it. Two ways past it: double-click **Editorial Tools** as usual
-and let it update itself, or type the full path to its Python — the [Updates]
-(#updates) section has the line to copy.
+Nothing is broken, nothing needs reinstalling, and no update has been missed.
+`editools` is shorthand that only works inside the setup the tools made for
+themselves; typed into an ordinary PowerShell or Terminal window it means
+nothing to it. You do not need it — updates install themselves whenever you
+open a checker. If you do want one today,
+[If you need an update today](#if-you-need-an-update-today) has the full line to
+copy and paste.
 
 **Windows opens the Microsoft Store when you type `python`**
 That is Windows offering to install it for you, and it works fine — but the
@@ -440,9 +468,10 @@ editools update                                 # install the latest version now
 editools update --check                         # is there a newer version?
 ```
 
-These are the names the commands go by once the environment they live in is the
-one you are typing into. After a double-click install it is not, so reach them
-the long way round — see [Updates](#updates) for the full path to type.
+These short names work in a shell that already has the tools' environment on
+its path. After a double-click install it does not, so call the same commands
+through the full path to that environment's Python — see
+[If you need an update today](#if-you-need-an-update-today).
 
 The old `indexcheck …` and `hyphencheck …` commands still work and mean the
 same thing, so nothing written down before the merge has stopped working.

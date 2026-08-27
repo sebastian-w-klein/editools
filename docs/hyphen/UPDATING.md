@@ -44,7 +44,7 @@ explicitly in `PROTECTED`, as a second line.
   only copied into place once the whole archive has been read. A truncated or
   corrupt download leaves the install untouched.
 - **The wrong archive.** An archive that does not contain
-  `src/hyphencheck/__init__.py` is refused before anything is written.
+  `src/editools/__init__.py` is refused before anything is written.
 - **A path escaping the folder.** Archive entries naming `..` are rejected.
   GitHub would never send one, but this code writes files, so it checks rather
   than trusts.
