@@ -300,7 +300,26 @@ word lookups and your `overrides.json` all survive an update untouched — the
 updater only ever replaces files that came with the tools in the first place.
 
 If you would rather check by hand, `editools update --check` says whether one
-is waiting and `editools update` installs it.
+is waiting and `editools update` installs it. Doing that also skips the
+once-a-day look, which is the only reason a brand-new version can take a day to
+arrive on its own.
+
+Opening the tools by double-click keeps Python tucked away in its own folder, so
+plain `editools` is not a command your Terminal or PowerShell knows — it answers
+*"the term 'editools' is not recognized"*. Say which Python to use and it works
+from any folder:
+
+* **Windows**, in PowerShell:
+
+  ```powershell
+  & "$env:LOCALAPPDATA\EditorialTools\venv\Scripts\python.exe" -m editools update
+  ```
+
+* **macOS**, in Terminal:
+
+  ```bash
+  "$HOME/Library/Application Support/EditorialTools/venv/bin/python" -m editools update
+  ```
 
 ---
 
@@ -311,6 +330,14 @@ Python is not installed, or on Windows the **"Add python.exe to PATH"** box was
 not ticked during installation. Run the installer again, choose **Modify**, and
 make sure that box is ticked. Then close your Terminal or Command Prompt window
 and open a new one — it only notices new software when it starts.
+
+**"The term 'editools' is not recognized" / "command not found: editools"**
+Nothing is broken, and nothing needs reinstalling. Opening the tools by
+double-click keeps their Python in a folder of its own, which your Terminal or
+PowerShell knows nothing about, so the short `editools …` commands are not
+spelled out for it. Two ways past it: double-click **Editorial Tools** as usual
+and let it update itself, or type the full path to its Python — the [Updates]
+(#updates) section has the line to copy.
 
 **Windows opens the Microsoft Store when you type `python`**
 That is Windows offering to install it for you, and it works fine — but the
@@ -412,6 +439,10 @@ editools ui                                     # the page they are both reached
 editools update                                 # install the latest version now
 editools update --check                         # is there a newer version?
 ```
+
+These are the names the commands go by once the environment they live in is the
+one you are typing into. After a double-click install it is not, so reach them
+the long way round — see [Updates](#updates) for the full path to type.
 
 The old `indexcheck …` and `hyphencheck …` commands still work and mean the
 same thing, so nothing written down before the merge has stopped working.
