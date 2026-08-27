@@ -168,7 +168,7 @@ merely lose a break: it joins two unrelated fragments into a word nobody set
 (`consid-` + `ONE: The Garden` → `considONE`) and then reports that word as a
 confident rule violation.
 
-So page furniture is identified before any break is read, by three independent
+So page furniture is identified before any break is read, by four independent
 signals, any one of which is enough:
 
 1. **Position.** A running head and a folio hold the same height on every page.
@@ -182,6 +182,17 @@ signals, any one of which is enough:
    common* gap rather than the median, because each page's margins contribute a
    couple of very large gaps that drag a median upward.
 3. **Repeated text.** Short lines appearing at a page edge three or more times.
+4. **The export slug.** InDesign stamps the file name, the spread number and
+   the export date and time across the foot of every page of a proof
+   (`042-154238_ch01_1P.indd 29    08/07/26 7:27 PM`). A literal file name is
+   as certain a mark of furniture as there is, and it is needed as its own
+   signal because the first three all look for a *short* line: the slug runs
+   most of the measure and slips past every one of them. It is matched against
+   the line as extracted, before the artifact patterns below trim it, and
+   against a form with runs of repeated characters collapsed — some pages of a
+   proof decode the same slug with every glyph doubled
+   (`004422--115544223388__cchh0011__11PP..iinnddd`), which is where
+   `bath-/cchh` and a "`PPMM`" flagged as a broken name both came from.
 
 If a break still crosses a page turn into something that reads as furniture —
 all capitals, or containing digits — the row is reported as unreadable, with a

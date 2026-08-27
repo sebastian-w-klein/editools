@@ -38,6 +38,63 @@ DEFAULT_ARTIFACTS = [
     r"\s*\d+/\d+/\d+\s+\d+:\d+\s*(?:AM|PM)?\s*$",  # export timestamps
 ]
 
+#: The slug InDesign stamps across the foot of an exported proof — the
+#: ``.indd`` file name, the spread number, and the export date and time:
+#:
+#:     042-154238_ch01_1P.indd 29                08/07/26 7:27 PM
+#:
+#: It sits below the folio on nearly every page and is no part of the typeset
+#: book.  A literal file name is about as certain a mark of furniture as there
+#: is, which matters because this line is *long* — it runs most of the measure
+#: — and so escapes the geometry and position signals, both of which look for
+#: a short line in the margin.
+EXPORT_FOOTER = re.compile(
+    r"^[\w.\-:/\\ ]*?\.ind+\b"                   # 042-154238_ch01_1P.indd
+    r"(?:\s+\d+)?"                                # the spread number
+    r"(?:\s+\d{1,2}/\d{1,2}/\d{2,4})?"            # 08/07/26
+    r"(?:\s+\d{1,2}:\d{2}(?:\s*[AP]\.?M\.?)?)?"   # 7:27 PM
+    r"\s*$",
+    re.IGNORECASE,
+)
+
+#: The other half of the slug, when extraction breaks it into two lines: a
+#: line that is nothing but the export date and time.  The artifact patterns
+#: above already strip this from the end of any line — it only survives on its
+#: own when the doubling puts it beyond their reach.
+EXPORT_TIMESTAMP = re.compile(
+    r"^\d{1,2}/\d{1,2}/\d{2,4}"
+    r"(?:\s+\d{1,2}:\d{2}(?:\s*[AP]\.?M\.?)?)?\s*$",
+    re.IGNORECASE,
+)
+
+DOUBLED = re.compile(r"(.)\1+")
+
+
+def _squeeze(text: str) -> str:
+    """Collapse every run of a repeated character to one.
+
+    Some pages of a proof decode the footer with each glyph doubled —
+    ``004422--115544223388__cchh0011__11PP..iinnddd`` for the same text that
+    reads cleanly elsewhere in the file — so the pattern above cannot see it.
+    Squeezing hands it back a readable ``042-154238_ch01_1P.ind``.  It is
+    lossy (real double letters go too), which is why it is only ever used to
+    *recognise* a line, never to rewrite one.
+    """
+    return DOUBLED.sub(r"\1", text)
+
+
+def is_export_footer(text: str) -> bool:
+    """True if *text* is an InDesign export slug rather than a line of the book."""
+    text = text.strip()
+    if not text:
+        return False
+    return any(
+        pattern.match(form)
+        for pattern in (EXPORT_FOOTER, EXPORT_TIMESTAMP)
+        for form in (text, _squeeze(text))
+    )
+
+
 FOLIO = re.compile(r"^\s*(\d{1,4}|[ivxlcdm]{1,8}|[IVXLCDM]{1,8})\s*$")
 
 ITALIC_FONT = re.compile(r"italic|oblique|-it\b|it$", re.IGNORECASE)
@@ -55,6 +112,10 @@ class Line:
     top: float = 0.0
     bottom: float = 0.0
     chars: list = field(default_factory=list, repr=False)
+    #: The line as extracted, before the artifact patterns trimmed it.  A
+    #: footer is recognised by its file name and timestamp, and stripping
+    #: those is exactly what takes the evidence away.
+    raw: str = ""
 
 
 @dataclass
@@ -144,6 +205,7 @@ def read_pages(pdf_path: str, artifacts: list[str] | None = None) -> list[Page]:
                     pdf_page=page_number,
                     index=index,
                     text=text,
+                    raw=raw.get("text", ""),
                     top=float(raw.get("top", 0.0) or 0.0),
                     bottom=float(raw.get("bottom", 0.0) or 0.0),
                     chars=raw.get("chars", []),
@@ -166,10 +228,11 @@ MAX_FURNITURE_PER_EDGE = 2
 class Furniture:
     """The lines on each page that are not body text.
 
-    Running heads, folios and proof markers have to be identified before any
-    break can be read, because a word divided across a page boundary continues
-    on the *next page's first body line* — and if a running head is mistaken
-    for that line, the two halves get joined into a word nobody set.
+    Running heads, folios, export slugs and proof markers have to be
+    identified before any break can be read, because a word divided across a
+    page boundary continues on the *next page's first body line* — and if a
+    running head is mistaken for that line, the two halves get joined into a
+    word nobody set.
     """
 
     by_page: dict[int, set[int]] = field(default_factory=dict)
@@ -312,7 +375,9 @@ def find_furniture(pages: list[Page]) -> Furniture:
         marks = _geometric_furniture(page.lines, leading, measure)
         marks |= positional.get(page.number, set())
         for index, line in enumerate(page.lines):
-            if FOLIO.match(line.text) or _normalize(line.text) in running_heads:
+            if (FOLIO.match(line.text)
+                    or _normalize(line.text) in running_heads
+                    or is_export_footer(line.raw or line.text)):
                 marks.add(index)
         by_page[page.number] = marks
     return Furniture(by_page=by_page, running_heads=running_heads)

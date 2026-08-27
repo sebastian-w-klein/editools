@@ -135,3 +135,66 @@ def test_an_unreadable_page_turn_is_flagged_rather_than_invented(mw):
     rules.evaluate(brk, rules.Context(dictionary=mw, tokens={}))
     assert brk.worst is not Verdict.VIOLATION
     assert "running head or folio" in " ".join(brk.notes)
+
+
+# -- InDesign's export slug ---------------------------------------------------
+
+def test_the_export_footer_is_recognised_however_it_decodes():
+    """The clean slug and the doubled-glyph one are the same line of furniture."""
+    assert extract.is_export_footer(
+        "042-154238_ch01_1P.indd 29                08/07/26 7:27 PM")
+    assert extract.is_export_footer(
+        "004422--115544223388__cchh0011__11PP..iinnddd  2299"
+        "            0088//0077//2266  77::2277  PPMM")
+    # …and what is left of it once the artifact patterns have had it.
+    assert extract.is_export_footer("042-154238_ch01_1P.indd 29")
+    assert extract.is_export_footer("Swans_INT_2P.indd 114 8/7/26 7:27 AM")
+    # A slug carrying a full export path, and one broken into two lines.
+    assert extract.is_export_footer("Users/td/Swans/042-154238_ch01_1P.indd 29")
+    assert extract.is_export_footer("08/07/26 7:27 PM")
+    assert extract.is_export_footer("0088//0077//2266  77::2277  PPMM")
+
+
+def test_body_text_is_not_mistaken_for_the_export_footer():
+    for line in [
+        "She had rehearsed the words for weeks and still they came",
+        "the wind. It was 7:27 PM and the light was very thin.",
+        "a paperback of Wordswor-",
+        "St. India, and the letters were addressed to Marvol-",
+        "40",
+    ]:
+        assert not extract.is_export_footer(line), line
+
+
+def test_the_export_footer_is_never_read_as_body_text(export_footer_pdf):
+    document = extract.load(str(export_footer_pdf))
+    for page in document.pages:
+        marks = document.furniture.marks(page.number)
+        slugs = [index for index, line in enumerate(page.lines)
+                 if ".ind" in extract._squeeze(line.raw)]
+        assert slugs, f"page {page.number} lost its footer before extraction"
+        assert set(slugs) <= marks, f"footer left in the body of page {page.number}"
+
+
+def test_a_divided_word_is_not_joined_to_the_export_footer(export_footer_pdf):
+    """The word continues on the next page, not in the file name below it."""
+    document = extract.load(str(export_footer_pdf))
+    words = {brk.word for brk in document.breaks}
+    assert "bathroom" in words
+    assert not any("cchh" in brk.right or "indd" in brk.right
+                   for brk in document.breaks)
+
+
+def test_the_export_footer_is_not_flagged_as_a_name_break(export_footer_pdf):
+    """The slug's tail ("PPMM") was being read as a name against the next line."""
+    from editools.hyphen import rules
+
+    document = extract.load(str(export_footer_pdf))
+    findings = rules.check_line_breaks(document.pages, document.furniture)
+    assert findings == []
+
+
+def test_the_export_footer_is_not_counted_as_a_word_of_the_book(export_footer_pdf):
+    document = extract.load(str(export_footer_pdf))
+    for junk in ("cchh", "indd", "ppmm", "iinnddd"):
+        assert document.token_appears(junk) == 0

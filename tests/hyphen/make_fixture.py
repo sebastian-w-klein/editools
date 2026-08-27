@@ -164,7 +164,73 @@ def build_page_turn(path: str | Path) -> Path:
     return path
 
 
+# --------------------------------------------------------------------------
+# A third proof, carrying InDesign's export slug at the foot of every page.
+# --------------------------------------------------------------------------
+
+#: The file name and export timestamp InDesign stamps below the folio.
+FOOTER_CLEAN = "042-154238_ch01_1P.indd 29                08/07/26 7:27 PM"
+
+#: The same slug as parts of a real proof decode it, every glyph doubled. The
+#: two forms sit in one file: the clean one is trimmed to a short line and so
+#: reads as furniture, while this one runs the full measure and does not.
+FOOTER_DOUBLED = (
+    "004422--115544223388__cchh0011__11PP..iinnddd  2299"
+    "            0088//0077//2266  77::2277  PPMM"
+)
+
+#: A word divided at the foot of a page, so the footer stands between it and
+#: the rest of the word on the page after.
+FOOTER_TAILS = {1: "she stood there in the cold and waited for the bath-"}
+FOOTER_HEADS = {
+    2: "room light to come on somewhere above the garden wall.",
+    # A line opening on a roman numeral, which Rule 6 reads against whatever
+    # word ends the line before it.
+    4: "I remembered the letters and how they had been signed.",
+}
+
+FOOTER_PAGES = 6
+FOOTER_FIRST_FOLIO = 40
+
+
+def build_export_footer(path: str | Path) -> Path:
+    """A proof stamped with InDesign's export slug at the foot of every page."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pdf = canvas.Canvas(str(path), pagesize=A5)
+    width, height = A5
+
+    for index in range(FOOTER_PAGES):
+        pdf.setFont("Times-Roman", 8)
+        pdf.drawCentredString(width / 2, height - 40, "SWANS")
+
+        body = (
+            ([FOOTER_HEADS[index]] if index in FOOTER_HEADS else [])
+            + TURN_BODY
+            + ([FOOTER_TAILS[index]] if index in FOOTER_TAILS else [])
+        )
+        y = height - 75
+        for line in body:
+            x = 45
+            for word in line.split(" "):
+                pdf.setFont("Times-Roman", 10)
+                pdf.drawString(x, y, word)
+                x += pdf.stringWidth(word + " ", "Times-Roman", 10)
+            y -= 16
+
+        pdf.setFont("Times-Roman", 9)
+        pdf.drawCentredString(width / 2, 40, str(FOOTER_FIRST_FOLIO + index))
+
+        pdf.setFont("Times-Roman", 7)
+        pdf.drawString(30, 22, FOOTER_DOUBLED if index % 2 else FOOTER_CLEAN)
+        pdf.showPage()
+
+    pdf.save()
+    return path
+
+
 if __name__ == "__main__":
     fixtures = Path(__file__).parent / "fixtures"
     print(build(fixtures / "sample_proof.pdf"))
     print(build_page_turn(fixtures / "page_turn_proof.pdf"))
+    print(build_export_footer(fixtures / "export_footer_proof.pdf"))

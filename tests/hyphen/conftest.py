@@ -121,4 +121,12 @@ def page_turn_pdf(tmp_path) -> Path:
     return build_page_turn(tmp_path / "page_turn_proof.pdf")
 
 
+@pytest.fixture
+def export_footer_pdf(tmp_path) -> Path:
+    """A proof carrying InDesign's export slug at the foot of every page."""
+    from hyphen.make_fixture import build_export_footer
+
+    return build_export_footer(tmp_path / "export_footer_proof.pdf")
+
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
